@@ -1,20 +1,33 @@
 # TRMNL Astro Dashboard
 
-A three-ring astronomical dashboard rendered as a single PNG and pushed to a
-TRMNL e-ink display via Webhook, on a free GitHub Actions schedule.
+A three-ring astronomical dashboard rendered as PNGs and pushed to a TRMNL
+e-ink display via Webhook, on a free GitHub Actions schedule. Renders at
+all four standard TRMNL layout sizes (Full, Half horizontal, Half
+vertical, Quadrant).
 
 - **Center**: moon phase disc (illuminated fraction + waxing/waning side).
 - **Middle ring**: Equation of Time polar plot — one point per day of the
   year, angle = day-of-year (Jan 1 at top, clockwise), radius = EoT minutes
   offset from a baseline circle. Today's position is marked with an open
-  ring. Fourier method from
+  ring; the 12 month-start days are marked with dots, and the four cardinal
+  months (Jan/Apr/Jul/Oct) are additionally labeled with their zodiac sign
+  (♑/♈/♋/♎ — the tropical sign in effect on the 1st of that month). Fourier
+  method from
   [equation-of-time.info](https://equation-of-time.info/calculating-the-equation-of-time)
   (same formula previously verified in a Swift watch app).
-- **Outer ring**: 24-hour daylight/twilight/night band (midnight at top,
-  clockwise) — night (black), astronomical/nautical/civil twilight
-  (graduated grays), day (white) — with a marker for the current time.
-- **Text panel**: date, EoT value (minutes, fast/slow), moon phase name and
-  illumination %, sunrise/sunset, day length, civil twilight window.
+- **Outer ring**: 24-hour daylight/twilight/night band, **noon at top (12
+  o'clock), midnight at bottom (6 o'clock)**, clockwise — night (black),
+  astronomical/nautical/civil twilight (diagonal hatch at three
+  densities), day (white) — with a marker for the current time. The
+  NOON/MIDNIGHT text labels only render in the Full layout — at smaller
+  sizes there isn't room for an 8-letter word next to a zodiac glyph at
+  fixed font size, so only the long tick marks at true 0°/180° remain.
+- **Text panel** (Full and Half layouts only — Quadrant is graphic-only):
+  date, "Fast"/"Slow" (EoT direction, no minutes value or sign), moon
+  phase name (no illumination %), and — Full and Half vertical only —
+  sunrise/sunset, day length, civil twilight window. Half horizontal and
+  Half vertical drop that last block; there isn't vertical room for it at
+  the same fixed font sizes Full uses (see Design decisions).
 
 ## How delivery works
 
@@ -22,17 +35,19 @@ TRMNL's documented Webhook strategy caps payloads at 2–5 KB of JSON
 `merge_variables` — too small for an embedded image. So instead of pushing
 image bytes, the Action:
 
-1. Renders `data/dashboard.png` and commits it to this repo (same pattern
-   `trmnl-wbgt` uses for `data/latest.json` — free, versioned hosting via
-   `raw.githubusercontent.com`, no separate image host needed).
-2. POSTs a small JSON payload — just `{"merge_variables": {"image_url": "..."}}`
-   — to the plugin's Webhook URL, using the *commit SHA* in the URL
-   (not `main`) so TRMNL always fetches the exact new image instead of a
+1. Renders all four `data/dashboard_<layout>.png` files and commits them
+   to this repo (same pattern `trmnl-wbgt` uses for `data/latest.json` —
+   free, versioned hosting via `raw.githubusercontent.com`, no separate
+   image host needed).
+2. POSTs one small JSON payload with four `image_url_<layout>` fields —
+   to the plugin's Webhook URL, using the *commit SHA* in each URL (not
+   `main`) so TRMNL always fetches the exact new images instead of a
    possibly CDN-cached stale one.
-3. `templates/astro.liquid` is just `<img src="{{ image_url }}">` — TRMNL's
-   own rendering pipeline dithers it to the device's e-ink bitmap the same
-   way it dithers everything else, so the image is left as antialiased
-   8-bit grayscale rather than pre-dithered.
+3. Each `templates/<layout>.liquid` is just
+   `<img src="{{ image_url_<layout> }}">` — TRMNL's own rendering pipeline
+   dithers it to the device's e-ink bitmap the same way it dithers
+   everything else, so the images are left as antialiased 8-bit grayscale
+   rather than pre-dithered.
 
 **Verify the webhook domain before relying on this.** The docs I could
 fetch state the endpoint as `https://trmnl.com/api/custom_plugins/{UUID}`,
@@ -53,24 +68,33 @@ dashboard — it displays the exact Webhook URL to POST to. If it says
    webhook URL.
 3. **Trigger a manual run** (Actions tab → "Render and push astro
    dashboard" → Run workflow) to test before waiting on the 3-hour cron.
-4. **TRMNL plugin markup**: paste `templates/astro.liquid` into the
-   plugin's markup editor (Full layout, 800×480, matches the rendered
-   image's aspect ratio).
+4. **TRMNL plugin markup**: paste each `templates/<layout>.liquid` into
+   the matching tab in the plugin's markup editor:
+   - Full (800×480) → `templates/full.liquid`
+   - Half horizontal (800×240) → `templates/half_horizontal.liquid`
+   - Half vertical (400×480) → `templates/half_vertical.liquid`
+   - Quadrant (400×240) → `templates/quadrant.liquid`
 
 ## Local testing
 
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python render_dashboard.py --lat 37.5407 --lon -77.4360 --tz "America/New_York" --out data/dashboard.png
+python render_dashboard.py --lat 37.5407 --lon -77.4360 --tz "America/New_York" --layout full
+# --layout also accepts half_horizontal / half_vertical / quadrant
+# (defaults to writing data/dashboard_<layout>.png if --out isn't given)
 ```
 
-Text rendering needs a TTF font. The script looks for
+Text rendering needs a TTF font that covers the zodiac glyphs (U+2648–
+U+2653) as well as Latin text — DejaVu Sans does. The script looks for
 `/usr/share/fonts/truetype/dejavu/DejaVuSans*.ttf` (installed via
 `apt-get install fonts-dejavu-core` in CI) and falls back to
 `FONT_REGULAR`/`FONT_BOLD` env vars, then to PIL's tiny built-in bitmap
-font if neither is found — set the env vars if testing on a machine
-without DejaVu installed.
+font (no zodiac glyph support) if neither is found. On a machine without
+DejaVu installed, point the env vars at any DejaVu Sans TTF — e.g. the
+copy bundled inside an installed `matplotlib` package
+(`matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf`) works fine for local
+testing without needing a system font install.
 
 ## Design decisions
 
@@ -100,3 +124,23 @@ limitation: each twilight stage is only ~8–10° of arc, so the three
 densities are hard to tell apart by eye at this ring size even though they
 survive processing correctly — an inherent tension between ring
 compactness and stage count, not a rendering bug.
+
+**Font sizes and stroke widths don't scale down with the layout; ring
+radii do.** All four layouts render on the same physical e-ink panel at
+the same DPI — a smaller layout uses less of the panel, not a shrunk
+panel — so a 15pt label should stay 15pt everywhere, the same way a
+browser doesn't shrink your fonts when the window gets smaller. Only the
+circle geometry (`Geometry.scale = r_ring_out / 215`) scales per layout.
+This is also why Half horizontal/vertical drop the SUN block instead of
+shrinking every font to fit: shrinking would fight the same-DPI
+assumption, so cutting content is the correct move once content stops
+fitting, not smaller type.
+
+**NOON/MIDNIGHT text labels are gated to `scale >= 0.9`** (effectively
+Full only). They're nudged 25°/205° off the exact 0°/180° axis so they
+don't sit radially under the Jan/Jul zodiac glyphs, which are also
+anchored near 0°/180° — but at smaller ring sizes, an 8-letter word next
+to a zodiac glyph collides regardless of the nudge, since font size is
+fixed absolute while the ring's radial gap keeps shrinking. Rather than
+keep tuning nudge angles per layout, smaller layouts just drop the words;
+the long tick marks at true 0°/180° still mark noon/midnight.

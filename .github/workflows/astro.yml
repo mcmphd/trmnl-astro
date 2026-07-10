@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write  # needed to commit data/dashboard.png back to the repo
+      contents: write  # needed to commit data/dashboard_*.png back to the repo
     steps:
       - uses: actions/checkout@v4
 
@@ -27,24 +27,28 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Render dashboard.png
+      - name: Render all four layout sizes
         env:
           ASTRO_LAT: ${{ vars.ASTRO_LAT }}
           ASTRO_LON: ${{ vars.ASTRO_LON }}
           ASTRO_TZ: ${{ vars.ASTRO_TZ }}
         run: |
-          python render_dashboard.py --lat "$ASTRO_LAT" --lon "$ASTRO_LON" --tz "$ASTRO_TZ" --out data/dashboard.png
+          for layout in full half_horizontal half_vertical quadrant; do
+            python render_dashboard.py --lat "$ASTRO_LAT" --lon "$ASTRO_LON" --tz "$ASTRO_TZ" \
+              --layout "$layout" --out "data/dashboard_${layout}.png"
+          done
 
-      - name: Commit rendered image
+      - name: Commit rendered images
         id: commit
         run: |
           git config user.name "trmnl-astro-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/dashboard.png
+          git add data/dashboard_full.png data/dashboard_half_horizontal.png \
+                  data/dashboard_half_vertical.png data/dashboard_quadrant.png
           if git diff --staged --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "Update astro dashboard image"
+            git commit -m "Update astro dashboard images"
             git push
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
@@ -56,7 +60,12 @@ jobs:
         run: |
           SHA=$(git rev-parse HEAD)
           REPO="${GITHUB_REPOSITORY}"
-          IMAGE_URL="https://raw.githubusercontent.com/${REPO}/${SHA}/data/dashboard.png"
+          BASE="https://raw.githubusercontent.com/${REPO}/${SHA}/data"
           curl -sf -X POST "https://trmnl.com/api/custom_plugins/${TRMNL_PLUGIN_UUID}" \
             -H "Content-Type: application/json" \
-            -d "{\"merge_variables\": {\"image_url\": \"${IMAGE_URL}\"}}"
+            -d "{\"merge_variables\": {
+              \"image_url_full\": \"${BASE}/dashboard_full.png\",
+              \"image_url_half_horizontal\": \"${BASE}/dashboard_half_horizontal.png\",
+              \"image_url_half_vertical\": \"${BASE}/dashboard_half_vertical.png\",
+              \"image_url_quadrant\": \"${BASE}/dashboard_quadrant.png\"
+            }}"
