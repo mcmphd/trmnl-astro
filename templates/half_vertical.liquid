@@ -1,9 +1,13 @@
 <div class="layout layout--stretch-x">
   <div class="frame" style="width: 100%; text-align: center;">
     {% if image_url_half_vertical %}
-      <img src="{{ image_url_half_vertical }}" style="width: 100%; height: auto;" />
-    {% else %}
-      <span class="value">No image yet</span>
+      <img class="visible portrait:hidden" src="{{ image_url_half_vertical }}" style="width: 100%; height: auto;" />
     {% endif %}
+    {% if image_url_half_vertical_portrait %}
+      <img class="hidden portrait:visible" src="{{ image_url_half_vertical_portrait }}" style="width: 100%; height: auto;" />
+    {% endif %}
+    {% unless image_url_half_vertical or image_url_half_vertical_portrait %}
+      <span class="value">No image yet</span>
+    {% endunless %}
   </div>
 </div>

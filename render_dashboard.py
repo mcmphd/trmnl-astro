@@ -75,8 +75,11 @@ LAYOUTS = {
     "full": dict(w=800, h=480, cx=240, cy=240, r_ring_out=215, text_mode="right", text_x=500, text_y=40, text_w=280, compact=False, zodiac_all=True),
     "full_portrait": dict(w=480, h=800, cx=240, cy=195, r_ring_out=165, text_mode="below", text_x=40, text_y=380, text_w=400, compact=False, zodiac_all=True),
     "half_horizontal": dict(w=800, h=240, cx=130, cy=120, r_ring_out=105, text_mode="right", text_x=280, text_y=14, text_w=500, compact=True, zodiac_all=False),
+    "half_horizontal_portrait": dict(w=480, h=400, cx=140, cy=115, r_ring_out=95, text_mode="below", text_x=20, text_y=225, text_w=440, compact=True, zodiac_all=False),
     "half_vertical": dict(w=400, h=480, cx=200, cy=155, r_ring_out=135, text_mode="below", text_x=40, text_y=310, text_w=320, compact=True, zodiac_all=False),
+    "half_vertical_portrait": dict(w=240, h=800, cx=120, cy=110, r_ring_out=95, text_mode="below", text_x=10, text_y=225, text_w=220, compact=True, zodiac_all=False),
     "quadrant": dict(w=400, h=240, cx=200, cy=120, r_ring_out=100, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False, zodiac_all=False),
+    "quadrant_portrait": dict(w=240, h=400, cx=120, cy=170, r_ring_out=105, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False, zodiac_all=False),
 }
 
 # Body text is serif. The zodiac glyphs (U+2648-2653) are a separate,
@@ -227,19 +230,24 @@ def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometr
     base_r = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang + 3)
     draw.polygon([tip, base_l, base_r], fill=BLACK)
 
-    # noon / midnight anchor labels, just inside the ring. Nudged off the
-    # exact 0/180 axis so they read as sitting beside the long tick mark
-    # rather than directly on top of it. Below a certain ring size there
-    # isn't room for an 8-letter word at fixed (unscaled) font size without
-    # crowding the annulus -- the long tick marks at true 0/180 already
-    # mark noon/midnight, so skip the words there.
-    if scale >= 0.9:
-        f = font(11)
-        for label, ang in (("NOON", 25), ("MIDNIGHT", 205)):
-            p = polar_point(cx, cy, r_in - 28 * scale * SS, ang)
-            bbox2 = draw.textbbox((0, 0), label, font=f)
-            w, h = bbox2[2] - bbox2[0], bbox2[3] - bbox2[1]
-            draw.text((p[0] - w / 2, p[1] - h / 2), label, fill=BLACK, font=f)
+    # noon / midnight markers, centered in the daylight track itself: a
+    # white (hollow) circle for noon, a black (filled) circle for midnight.
+    # Compact enough to show at every layout size, unlike the word labels
+    # they replace -- no more scale gating needed. Noon normally falls in
+    # the white day band and midnight in the black night band, so each
+    # marker's outline is the OPPOSITE of its fill -- a same-color outline
+    # would make it disappear into a same-color background.
+    r_track_mid = (r_in + r_out) / 2
+    marker_r = max(3 * SS, 8 * scale * SS)
+    for ang, fill, outline in ((0, WHITE, BLACK), (180, BLACK, WHITE)):
+        p = polar_point(cx, cy, r_track_mid, ang)
+        draw.ellipse(
+            (p[0] - marker_r, p[1] - marker_r, p[0] + marker_r, p[1] + marker_r),
+            fill=fill, outline=outline, width=SS,
+        )
+
+
+MONTH_INITIAL = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
 
 def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points, zodiac_all: bool):
@@ -270,15 +278,24 @@ def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points, 
             today_idx = i
     draw.line(pts + [pts[0]], fill=BLACK, width=int(2.2 * SS), joint="curve")
 
-    # month start tick marks (all 12 calendar months, always)
+    # month start markers (all 12 calendar months, always): a single-letter
+    # abbreviation sitting right on the loop, in place of the plain dot this
+    # used to be. A white halo behind each letter keeps it legible against
+    # the loop's own black line, which is thick enough to otherwise swallow
+    # a letter drawn directly on top of it.
     scale = geo.scale
-    dot_r = max(2 * SS, 3 * scale * SS)
+    f_initial = font(12, bold=True)
     for i, (doy, dd, eot_min) in enumerate(year_points):
         if dd.day == 1:
             ang = angle_for_index(i)
             r = eot_radius(eot_min)
             p = polar_point(cx, cy, r, ang)
-            draw.ellipse((p[0] - dot_r, p[1] - dot_r, p[0] + dot_r, p[1] + dot_r), fill=BLACK)
+            letter = MONTH_INITIAL[dd.month - 1]
+            bbox = draw.textbbox((0, 0), letter, font=f_initial)
+            w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            halo_r = max(w, h) * 0.75
+            draw.ellipse((p[0] - halo_r, p[1] - halo_r, p[0] + halo_r, p[1] + halo_r), fill=WHITE)
+            draw.text((p[0] - w / 2, p[1] - h / 2), letter, fill=BLACK, font=f_initial)
 
     # zodiac signs, at their actual entry dates (distinct from the calendar
     # month-start dots above), labeled on the inside of the loop. Full-size
@@ -351,6 +368,29 @@ def format_hm(dt):
     return dt.strftime("%-I:%M %p").lower()
 
 
+def _wrap_text(draw, text, fnt, max_width):
+    """Greedy word-wrap: split `text` into lines no wider than `max_width`.
+    Needed for narrow layouts (e.g. half_vertical_portrait at 240px) where a
+    fixed-size line genuinely doesn't fit the canvas width, even though
+    there's plenty of vertical room to wrap into -- font size stays fixed,
+    only line count changes.
+    """
+    words = text.split(" ")
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        bbox = draw.textbbox((0, 0), candidate, font=fnt)
+        if not current or bbox[2] - bbox[0] <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines
+
+
 def draw_text_panel(draw, tx, ty, tw, now_local, today, times, eot_min, fraction, center=False, compact=False):
     """compact=True drops the SUN block (rise/set/day-length/twilight) for
     layouts too short to fit the full text stack (half_horizontal,
@@ -391,15 +431,17 @@ def draw_text_panel(draw, tx, ty, tw, now_local, today, times, eot_min, fraction
         if not text:
             y += gap_after * SS
             continue
-        if center:
-            bbox = draw.textbbox((0, 0), text, font=fnt)
-            w = bbox[2] - bbox[0]
-            x = tx + (tw - w) / 2
-        else:
-            x = tx
-        draw.text((x, y), text, fill=BLACK, font=fnt)
-        bbox = draw.textbbox((x, y), text, font=fnt)
-        y = bbox[3] + gap_after * SS
+        for sub in _wrap_text(draw, text, fnt, tw):
+            if center:
+                bbox = draw.textbbox((0, 0), sub, font=fnt)
+                w = bbox[2] - bbox[0]
+                x = tx + (tw - w) / 2
+            else:
+                x = tx
+            draw.text((x, y), sub, fill=BLACK, font=fnt)
+            bbox = draw.textbbox((x, y), sub, font=fnt)
+            y = bbox[3]
+        y += gap_after * SS
 
 
 def render(lat, lon, tzname, out_path, layout="full", when=None):

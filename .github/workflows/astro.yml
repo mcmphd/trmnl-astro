@@ -40,9 +40,10 @@ jobs:
           print(f'tz={tz}')
           " >> "$GITHUB_OUTPUT"
 
-      - name: Render all five layout sizes
+      - name: Render all eight layout sizes
         run: |
-          for layout in full full_portrait half_horizontal half_vertical quadrant; do
+          for layout in full full_portrait half_horizontal half_horizontal_portrait \
+                        half_vertical half_vertical_portrait quadrant quadrant_portrait; do
             python render_dashboard.py --lat "${{ steps.geo.outputs.lat }}" \
               --lon "${{ steps.geo.outputs.lon }}" --tz "${{ steps.geo.outputs.tz }}" \
               --layout "$layout" --out "data/dashboard_${layout}.png"
@@ -54,8 +55,9 @@ jobs:
           git config user.name "trmnl-astro-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/dashboard_full.png data/dashboard_full_portrait.png \
-                  data/dashboard_half_horizontal.png data/dashboard_half_vertical.png \
-                  data/dashboard_quadrant.png
+                  data/dashboard_half_horizontal.png data/dashboard_half_horizontal_portrait.png \
+                  data/dashboard_half_vertical.png data/dashboard_half_vertical_portrait.png \
+                  data/dashboard_quadrant.png data/dashboard_quadrant_portrait.png
           if git diff --staged --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -78,6 +80,9 @@ jobs:
               \"image_url_full\": \"${BASE}/dashboard_full.png\",
               \"image_url_full_portrait\": \"${BASE}/dashboard_full_portrait.png\",
               \"image_url_half_horizontal\": \"${BASE}/dashboard_half_horizontal.png\",
+              \"image_url_half_horizontal_portrait\": \"${BASE}/dashboard_half_horizontal_portrait.png\",
               \"image_url_half_vertical\": \"${BASE}/dashboard_half_vertical.png\",
-              \"image_url_quadrant\": \"${BASE}/dashboard_quadrant.png\"
+              \"image_url_half_vertical_portrait\": \"${BASE}/dashboard_half_vertical_portrait.png\",
+              \"image_url_quadrant\": \"${BASE}/dashboard_quadrant.png\",
+              \"image_url_quadrant_portrait\": \"${BASE}/dashboard_quadrant_portrait.png\"
             }}"
