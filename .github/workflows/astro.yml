@@ -1,0 +1,62 @@
+name: Render and push astro dashboard
+
+on:
+  schedule:
+    # Every 3 hours -- moon phase and EoT change slowly, but this keeps
+    # the "now" marker on the daylight ring reasonably current.
+    - cron: "0 */3 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # needed to commit data/dashboard.png back to the repo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install DejaVu fonts (for text rendering)
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Render dashboard.png
+        env:
+          ASTRO_LAT: ${{ vars.ASTRO_LAT }}
+          ASTRO_LON: ${{ vars.ASTRO_LON }}
+          ASTRO_TZ: ${{ vars.ASTRO_TZ }}
+        run: |
+          python render_dashboard.py --lat "$ASTRO_LAT" --lon "$ASTRO_LON" --tz "$ASTRO_TZ" --out data/dashboard.png
+
+      - name: Commit rendered image
+        id: commit
+        run: |
+          git config user.name "trmnl-astro-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/dashboard.png
+          if git diff --staged --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Update astro dashboard image"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notify TRMNL via webhook
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          TRMNL_PLUGIN_UUID: ${{ secrets.TRMNL_PLUGIN_UUID }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          REPO="${GITHUB_REPOSITORY}"
+          IMAGE_URL="https://raw.githubusercontent.com/${REPO}/${SHA}/data/dashboard.png"
+          curl -sf -X POST "https://trmnl.com/api/custom_plugins/${TRMNL_PLUGIN_UUID}" \
+            -H "Content-Type: application/json" \
+            -d "{\"merge_variables\": {\"image_url\": \"${IMAGE_URL}\"}}"
