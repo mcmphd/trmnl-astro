@@ -13,10 +13,13 @@ than rotating the landscape one.
 - **Middle ring**: Equation of Time polar plot — one point per day of the
   year, angle = day-of-year (Jan 1 at top, clockwise), radius = EoT minutes
   offset from a baseline circle. Today's position is marked with an open
-  ring; the 12 month-start days are marked with dots, and the four cardinal
-  months (Jan/Apr/Jul/Oct) are additionally labeled with their zodiac sign
-  (♑/♈/♋/♎ — the tropical sign in effect on the 1st of that month). Fourier
-  method from
+  ring; the 12 calendar month-start days are marked with dots on the
+  loop. Zodiac sign glyphs are labeled on the *inside* of the loop, at
+  each sign's actual entry date (e.g. ♈ Aries on Mar 21) — deliberately
+  distinct from the month-start dots, which mark calendar months, not
+  zodiac boundaries. Full and Full portrait (which have the room) show
+  all 12 signs; Half horizontal, Half vertical, and Quadrant show only
+  whichever sign is currently active. Fourier method from
   [equation-of-time.info](https://equation-of-time.info/calculating-the-equation-of-time)
   (same formula previously verified in a Swift watch app). Text panel
   shows e.g. "5.6 min SLOW" (magnitude + direction word, sign dropped
@@ -196,10 +199,14 @@ assumption, so cutting content is the correct move once content stops
 fitting, not smaller type.
 
 **NOON/MIDNIGHT text labels are gated to `scale >= 0.9`** (effectively
-Full only). They're nudged 25°/205° off the exact 0°/180° axis so they
-don't sit radially under the Jan/Jul zodiac glyphs, which are also
-anchored near 0°/180° — but at smaller ring sizes, an 8-letter word next
-to a zodiac glyph collides regardless of the nudge, since font size is
-fixed absolute while the ring's radial gap keeps shrinking. Rather than
-keep tuning nudge angles per layout, smaller layouts just drop the words;
-the long tick marks at true 0°/180° still mark noon/midnight.
+Full and Full portrait only). At smaller ring sizes an 8-letter word
+doesn't fit the daylight annulus cleanly at fixed (unscaled) font size,
+since the ring's radial gap keeps shrinking while font size doesn't.
+Rather than keep tuning this per layout, smaller layouts just drop the
+words; the long tick marks at true 0°/180° still mark noon/midnight. (An
+earlier version of this note attributed the collision to the zodiac
+glyphs on the EoT loop, back when those were anchored at Jan/Jul and
+placed outside the loop, near this same annulus — they've since moved to
+each sign's actual entry date and to the *inside* of the loop instead, so
+that's no longer in play here, but the space constraint on the word
+itself still is.)

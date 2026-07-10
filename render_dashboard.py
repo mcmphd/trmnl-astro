@@ -25,7 +25,16 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 
-from astro_core import equation_of_time_minutes, eot_calendar_year, moon_illumination, moon_phase_name, resolve_zip, sun_times
+from astro_core import (
+    ZODIAC_SIGNS,
+    current_zodiac_glyph,
+    equation_of_time_minutes,
+    eot_calendar_year,
+    moon_illumination,
+    moon_phase_name,
+    resolve_zip,
+    sun_times,
+)
 
 SS = 4  # supersample factor
 
@@ -57,16 +66,17 @@ class Geometry:
         self.r_moon = _REF_R_MOON * scale * SS
 
 
-# (canvas_w, canvas_h, circle_cx, circle_cy, r_ring_out, text_mode, text_x, text_y, text_w, compact)
+# (canvas_w, canvas_h, circle_cx, circle_cy, r_ring_out, text_mode, text_x, text_y, text_w, compact, zodiac_all)
 # text_mode is "right", "below", or None (graphic only, e.g. quadrant). compact
 # drops the SUN block -- half sizes don't have the vertical room for it at
-# full-size, unscaled fonts.
+# full-size, unscaled fonts. zodiac_all shows all 12 zodiac glyphs on the EoT
+# loop (Full sizes have the room); half/quadrant show only the current sign.
 LAYOUTS = {
-    "full": dict(w=800, h=480, cx=240, cy=240, r_ring_out=215, text_mode="right", text_x=500, text_y=40, text_w=280, compact=False),
-    "full_portrait": dict(w=480, h=800, cx=240, cy=195, r_ring_out=165, text_mode="below", text_x=40, text_y=380, text_w=400, compact=False),
-    "half_horizontal": dict(w=800, h=240, cx=130, cy=120, r_ring_out=105, text_mode="right", text_x=280, text_y=14, text_w=500, compact=True),
-    "half_vertical": dict(w=400, h=480, cx=200, cy=155, r_ring_out=135, text_mode="below", text_x=40, text_y=310, text_w=320, compact=True),
-    "quadrant": dict(w=400, h=240, cx=200, cy=120, r_ring_out=100, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False),
+    "full": dict(w=800, h=480, cx=240, cy=240, r_ring_out=215, text_mode="right", text_x=500, text_y=40, text_w=280, compact=False, zodiac_all=True),
+    "full_portrait": dict(w=480, h=800, cx=240, cy=195, r_ring_out=165, text_mode="below", text_x=40, text_y=380, text_w=400, compact=False, zodiac_all=True),
+    "half_horizontal": dict(w=800, h=240, cx=130, cy=120, r_ring_out=105, text_mode="right", text_x=280, text_y=14, text_w=500, compact=True, zodiac_all=False),
+    "half_vertical": dict(w=400, h=480, cx=200, cy=155, r_ring_out=135, text_mode="below", text_x=40, text_y=310, text_w=320, compact=True, zodiac_all=False),
+    "quadrant": dict(w=400, h=240, cx=200, cy=120, r_ring_out=100, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False, zodiac_all=False),
 }
 
 # Body text is serif. The zodiac glyphs (U+2648-2653) are a separate,
@@ -218,11 +228,11 @@ def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometr
     draw.polygon([tip, base_l, base_r], fill=BLACK)
 
     # noon / midnight anchor labels, just inside the ring. Nudged off the
-    # exact 0/180 axis so they don't sit radially under the Jan/Jul zodiac
-    # glyphs on the EoT loop, which are also anchored at 0/180. Below a
-    # certain ring size there just isn't room for an 8-letter word next to
-    # a zodiac glyph at fixed (unscaled) font size -- the long tick marks
-    # at true 0/180 already mark noon/midnight, so skip the words there.
+    # exact 0/180 axis so they read as sitting beside the long tick mark
+    # rather than directly on top of it. Below a certain ring size there
+    # isn't room for an 8-letter word at fixed (unscaled) font size without
+    # crowding the annulus -- the long tick marks at true 0/180 already
+    # mark noon/midnight, so skip the words there.
     if scale >= 0.9:
         f = font(11)
         for label, ang in (("NOON", 25), ("MIDNIGHT", 205)):
@@ -232,13 +242,7 @@ def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometr
             draw.text((p[0] - w / 2, p[1] - h / 2), label, fill=BLACK, font=f)
 
 
-MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-# Tropical zodiac sign in effect on the 1st of each month (Northern convention).
-ZODIAC_GLYPH = ["♑", "♒", "♓", "♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐"]
-CARDINAL_MONTHS = {0, 3, 6, 9}  # Jan, Apr, Jul, Oct
-
-
-def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points):
+def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points, zodiac_all: bool):
     cx, cy = geo.cx, geo.cy
 
     def eot_radius(eot_min):
@@ -266,22 +270,34 @@ def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points):
             today_idx = i
     draw.line(pts + [pts[0]], fill=BLACK, width=int(2.2 * SS), joint="curve")
 
-    # month start tick marks (all 12) + zodiac sign at the 4 cardinal months
+    # month start tick marks (all 12 calendar months, always)
     scale = geo.scale
     dot_r = max(2 * SS, 3 * scale * SS)
-    f_month = symbol_font(13)
     for i, (doy, dd, eot_min) in enumerate(year_points):
         if dd.day == 1:
             ang = angle_for_index(i)
             r = eot_radius(eot_min)
             p = polar_point(cx, cy, r, ang)
             draw.ellipse((p[0] - dot_r, p[1] - dot_r, p[0] + dot_r, p[1] + dot_r), fill=BLACK)
-            if (dd.month - 1) in CARDINAL_MONTHS:
-                lp = polar_point(cx, cy, r + 22 * scale * SS, ang)
-                label = ZODIAC_GLYPH[dd.month - 1]
-                bbox = draw.textbbox((0, 0), label, font=f_month)
-                w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-                draw.text((lp[0] - w / 2, lp[1] - h / 2), label, fill=BLACK, font=f_month)
+
+    # zodiac signs, at their actual entry dates (distinct from the calendar
+    # month-start dots above), labeled on the inside of the loop. Full-size
+    # layouts show all 12; smaller layouts show only the currently active sign.
+    f_month = symbol_font(13)
+    active_glyph = None if zodiac_all else current_zodiac_glyph(today)
+    zodiac_starts = {(month, day): glyph for month, day, glyph in ZODIAC_SIGNS}
+    for i, (doy, dd, eot_min) in enumerate(year_points):
+        glyph = zodiac_starts.get((dd.month, dd.day))
+        if glyph is None:
+            continue
+        if not zodiac_all and glyph != active_glyph:
+            continue
+        ang = angle_for_index(i)
+        r = eot_radius(eot_min)
+        lp = polar_point(cx, cy, r - 22 * scale * SS, ang)
+        bbox = draw.textbbox((0, 0), glyph, font=f_month)
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((lp[0] - w / 2, lp[1] - h / 2), glyph, fill=BLACK, font=f_month)
 
     # today marker (open ring)
     ang0 = angle_for_index(today_idx)
@@ -402,7 +418,7 @@ def render(lat, lon, tzname, out_path, layout="full", when=None):
     draw_daylight_ring(img, draw, geo, now_local, times)
 
     year_points = eot_calendar_year(today.year)
-    draw_eot_loop(draw, geo, today, year_points)
+    draw_eot_loop(draw, geo, today, year_points, zodiac_all=cfg["zodiac_all"])
 
     fraction, waxing = moon_illumination(today)
     draw_moon(img, geo, fraction, waxing)

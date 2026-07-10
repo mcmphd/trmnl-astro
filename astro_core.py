@@ -113,6 +113,40 @@ def moon_phase_name(d: date) -> str:
     return "New Moon"
 
 
+# (start_month, start_day, glyph) for each of the 12 tropical zodiac signs,
+# in calendar order starting from Jan 1. Fixed conventional boundary dates
+# (they drift by a day across years against the real equinoxes/solstices --
+# not worth chasing precision for a decorative marker). This is the sign's
+# ENTRY date, distinct from the calendar month-start dates used for the
+# EoT loop's dots.
+ZODIAC_SIGNS = [
+    (1, 20, "♒"),  # Aquarius
+    (2, 19, "♓"),  # Pisces
+    (3, 21, "♈"),  # Aries
+    (4, 20, "♉"),  # Taurus
+    (5, 21, "♊"),  # Gemini
+    (6, 21, "♋"),  # Cancer
+    (7, 23, "♌"),  # Leo
+    (8, 23, "♍"),  # Virgo
+    (9, 23, "♎"),  # Libra
+    (10, 23, "♏"),  # Scorpio
+    (11, 22, "♐"),  # Sagittarius
+    (12, 22, "♑"),  # Capricorn
+]
+
+
+def current_zodiac_glyph(d: date) -> str:
+    """Glyph for whichever zodiac sign's date range contains `d`."""
+    md = (d.month, d.day)
+    active = ZODIAC_SIGNS[-1][2]  # Capricorn wraps around into Jan 1-19
+    for month, day, glyph in ZODIAC_SIGNS:
+        if md >= (month, day):
+            active = glyph
+        else:
+            break
+    return active
+
+
 def sun_times(d: date, lat: float, lon: float, tzname: str) -> dict:
     """Sunrise/sunset + civil/nautical/astronomical dawn/dusk, all tz-aware."""
     loc = LocationInfo("", "", tzname, lat, lon)
