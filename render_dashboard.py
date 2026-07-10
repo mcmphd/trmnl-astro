@@ -68,14 +68,24 @@ LAYOUTS = {
     "quadrant": dict(w=400, h=240, cx=200, cy=120, r_ring_out=100, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False),
 }
 
+# Body text is serif. The zodiac glyphs (U+2648-2653) are a separate,
+# dedicated symbol font, NOT a fallback in the same chain -- DejaVu Serif
+# (like most serif text faces) simply doesn't include the astrological
+# symbol block, confirmed by rendering all 12 and getting tofu boxes.
+# DejaVu Sans does have them, so the ring's zodiac labels use it regardless
+# of which serif face is chosen for everything else.
 FONT_CANDIDATES_REGULAR = [
     os.environ.get("FONT_REGULAR", ""),
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
     "/opt/homebrew/Library/Homebrew/vendor/portable-ruby/4.0.5_1/lib/ruby/gems/4.0.0/gems/rdoc-7.0.4/lib/rdoc/generator/template/darkfish/fonts/Lato-Regular.ttf",
 ]
 FONT_CANDIDATES_BOLD = [
     os.environ.get("FONT_BOLD", ""),
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf",
+]
+FONT_CANDIDATES_SYMBOL = [
+    os.environ.get("FONT_SYMBOL", ""),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 ]
 
 
@@ -96,6 +106,14 @@ def font(size, bold=False):
     if f:
         return f
     return ImageFont.load_default()
+
+
+def symbol_font(size):
+    px = size * SS
+    f = _load_font(FONT_CANDIDATES_SYMBOL, px)
+    if f:
+        return f
+    return font(size)
 
 
 def hour_angle_deg(dt_local: datetime) -> float:
@@ -250,7 +268,7 @@ def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points):
     # month start tick marks (all 12) + zodiac sign at the 4 cardinal months
     scale = geo.scale
     dot_r = max(2 * SS, 3 * scale * SS)
-    f_month = font(13)
+    f_month = symbol_font(13)
     for i, (doy, dd, eot_min) in enumerate(year_points):
         if dd.day == 1:
             ang = angle_for_index(i)

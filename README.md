@@ -85,16 +85,20 @@ python render_dashboard.py --lat 37.5407 --lon -77.4360 --tz "America/New_York" 
 # (defaults to writing data/dashboard_<layout>.png if --out isn't given)
 ```
 
-Text rendering needs a TTF font that covers the zodiac glyphs (U+2648–
-U+2653) as well as Latin text — DejaVu Sans does. The script looks for
-`/usr/share/fonts/truetype/dejavu/DejaVuSans*.ttf` (installed via
-`apt-get install fonts-dejavu-core` in CI) and falls back to
-`FONT_REGULAR`/`FONT_BOLD` env vars, then to PIL's tiny built-in bitmap
-font (no zodiac glyph support) if neither is found. On a machine without
-DejaVu installed, point the env vars at any DejaVu Sans TTF — e.g. the
-copy bundled inside an installed `matplotlib` package
-(`matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf`) works fine for local
-testing without needing a system font install.
+Body text renders in **DejaVu Serif** (`FONT_REGULAR`/`FONT_BOLD`, falling
+back to `/usr/share/fonts/truetype/dejavu/DejaVuSerif*.ttf` in CI). The
+zodiac glyphs (U+2648–U+2653) on the EoT loop are a **separate font**
+(`FONT_SYMBOL`, falling back to `DejaVuSans.ttf`) — confirmed by actually
+rendering all 12 glyphs that DejaVu Serif doesn't include the astrological
+symbol block at all (tofu boxes), while DejaVu Sans does. `fonts-dejavu-core`
+(installed via `apt-get` in CI) ships both families, so this needs no extra
+package. On a machine without DejaVu installed, point all three env vars
+at TTFs that cover what's needed — e.g. the copies bundled inside an
+installed `matplotlib` package
+(`matplotlib/mpl-data/fonts/ttf/DejaVuSerif.ttf` /
+`DejaVuSerif-Bold.ttf` / `DejaVuSans.ttf`) work fine for local testing
+without a system font install. If none of the three are found, everything
+falls back to PIL's tiny built-in bitmap font (no zodiac glyph support).
 
 ## Design decisions
 
