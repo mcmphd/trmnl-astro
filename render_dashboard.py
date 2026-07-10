@@ -63,6 +63,7 @@ class Geometry:
 # full-size, unscaled fonts.
 LAYOUTS = {
     "full": dict(w=800, h=480, cx=240, cy=240, r_ring_out=215, text_mode="right", text_x=500, text_y=40, text_w=280, compact=False),
+    "full_portrait": dict(w=480, h=800, cx=240, cy=195, r_ring_out=165, text_mode="below", text_x=40, text_y=380, text_w=400, compact=False),
     "half_horizontal": dict(w=800, h=240, cx=130, cy=120, r_ring_out=105, text_mode="right", text_x=280, text_y=14, text_w=500, compact=True),
     "half_vertical": dict(w=400, h=480, cx=200, cy=155, r_ring_out=135, text_mode="below", text_x=40, text_y=310, text_w=320, compact=True),
     "quadrant": dict(w=400, h=240, cx=200, cy=120, r_ring_out=100, text_mode=None, text_x=None, text_y=None, text_w=None, compact=False),

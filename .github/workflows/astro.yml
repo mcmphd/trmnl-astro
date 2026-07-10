@@ -2,9 +2,9 @@ name: Render and push astro dashboard
 
 on:
   schedule:
-    # Every 3 hours -- moon phase and EoT change slowly, but this keeps
-    # the "now" marker on the daylight ring reasonably current.
-    - cron: "0 */3 * * *"
+    # Every 6 hours -- matches trmnl-wbgt's cadence; moon phase and EoT
+    # change slowly enough that the "now" marker doesn't need finer than this.
+    - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 jobs:
@@ -40,9 +40,9 @@ jobs:
           print(f'tz={tz}')
           " >> "$GITHUB_OUTPUT"
 
-      - name: Render all four layout sizes
+      - name: Render all five layout sizes
         run: |
-          for layout in full half_horizontal half_vertical quadrant; do
+          for layout in full full_portrait half_horizontal half_vertical quadrant; do
             python render_dashboard.py --lat "${{ steps.geo.outputs.lat }}" \
               --lon "${{ steps.geo.outputs.lon }}" --tz "${{ steps.geo.outputs.tz }}" \
               --layout "$layout" --out "data/dashboard_${layout}.png"
@@ -53,8 +53,9 @@ jobs:
         run: |
           git config user.name "trmnl-astro-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/dashboard_full.png data/dashboard_half_horizontal.png \
-                  data/dashboard_half_vertical.png data/dashboard_quadrant.png
+          git add data/dashboard_full.png data/dashboard_full_portrait.png \
+                  data/dashboard_half_horizontal.png data/dashboard_half_vertical.png \
+                  data/dashboard_quadrant.png
           if git diff --staged --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -75,6 +76,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"merge_variables\": {
               \"image_url_full\": \"${BASE}/dashboard_full.png\",
+              \"image_url_full_portrait\": \"${BASE}/dashboard_full_portrait.png\",
               \"image_url_half_horizontal\": \"${BASE}/dashboard_half_horizontal.png\",
               \"image_url_half_vertical\": \"${BASE}/dashboard_half_vertical.png\",
               \"image_url_quadrant\": \"${BASE}/dashboard_quadrant.png\"
