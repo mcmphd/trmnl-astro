@@ -79,35 +79,59 @@ def polar_point(cx, cy, r, angle_deg):
     return (cx + r * math.cos(rad), cy + r * math.sin(rad))
 
 
-def draw_daylight_ring(draw: ImageDraw.ImageDraw, now_local: datetime, times: dict):
-    """24h clock-face ring, midnight at top, clockwise. Flat gray bands:
-    night=black, astronomical=64, nautical=128, civil=192, day=white.
+def hatch_wedge(img: Image.Image, bbox, a0, a1, spacing):
+    """Fill a pie-slice wedge (PIL angle convention, degrees) with a diagonal-line
+    hatch instead of a flat gray. Pure black/white lines survive both dithering
+    and naive thresholding identically -- a flat mid-gray fill does not (it can
+    collapse to solid black or vanish to white under a simple threshold).
+    """
+    size = img.size
+    mask = Image.new("L", size, 0)
+    ImageDraw.Draw(mask).pieslice(bbox, a0, a1, fill=255)
+
+    hatch = Image.new("L", size, WHITE)
+    hd = ImageDraw.Draw(hatch)
+    diag = int(math.hypot(*size))
+    for offset in range(0, 2 * diag, spacing):
+        hd.line([(offset - diag, 0), (offset, diag)], fill=BLACK, width=max(1, SS // 2))
+
+    img.paste(hatch, (0, 0), mask)
+
+
+def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, now_local: datetime, times: dict):
+    """24h clock-face ring, midnight at top, clockwise. Night/day are flat
+    black/white; the three twilight stages are diagonal hatch patterns
+    (densest near night, sparsest near day) rather than flat grays.
     """
     day0 = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
 
     def a(dt):
         return hour_angle_deg(dt)
 
+    # (start, end, fill) for solid bands, or (start, end, None, spacing) for hatch
     bands = [
-        (day0, times["dawn_astronomical"], BLACK),
-        (times["dawn_astronomical"], times["dawn_nautical"], 64),
-        (times["dawn_nautical"], times["dawn_civil"], 128),
-        (times["dawn_civil"], times["sunrise"], 192),
-        (times["sunrise"], times["sunset"], WHITE),
-        (times["sunset"], times["dusk_civil"], 192),
-        (times["dusk_civil"], times["dusk_nautical"], 128),
-        (times["dusk_nautical"], times["dusk_astronomical"], 64),
-        (times["dusk_astronomical"], day0 + timedelta(days=1), BLACK),
+        (day0, times["dawn_astronomical"], BLACK, None),
+        (times["dawn_astronomical"], times["dawn_nautical"], None, 5 * SS),
+        (times["dawn_nautical"], times["dawn_civil"], None, 9 * SS),
+        (times["dawn_civil"], times["sunrise"], None, 15 * SS),
+        (times["sunrise"], times["sunset"], WHITE, None),
+        (times["sunset"], times["dusk_civil"], None, 15 * SS),
+        (times["dusk_civil"], times["dusk_nautical"], None, 9 * SS),
+        (times["dusk_nautical"], times["dusk_astronomical"], None, 5 * SS),
+        (times["dusk_astronomical"], day0 + timedelta(days=1), BLACK, None),
     ]
 
     bbox = (CX - R_RING_OUT, CY - R_RING_OUT, CX + R_RING_OUT, CY + R_RING_OUT)
-    for start, end, fill in bands:
+    for start, end, fill, spacing in bands:
         a0, a1 = a(start), a(end)
         if a1 <= a0:
             a1 += 360
         # pieslice angles: 0deg = 3 o'clock in PIL convention, clockwise positive;
         # our a() is clockwise-from-top, so shift by -90.
-        draw.pieslice(bbox, a0 - 90, a1 - 90, fill=fill)
+        if fill is not None:
+            draw.pieslice(bbox, a0 - 90, a1 - 90, fill=fill)
+        else:
+            hatch_wedge(img, bbox, a0 - 90, a1 - 90, spacing)
 
     # punch the inner hole so only the annulus remains
     inner_bbox = (CX - R_RING_IN, CY - R_RING_IN, CX + R_RING_IN, CY + R_RING_IN)
@@ -251,7 +275,7 @@ def render(lat, lon, tzname, out_path, when=None):
     draw = ImageDraw.Draw(img)
 
     times = sun_times(today, lat, lon, tzname)
-    draw_daylight_ring(draw, now_local, times)
+    draw_daylight_ring(img, draw, now_local, times)
 
     year_points = eot_calendar_year(today.year)
     draw_eot_loop(draw, today, year_points)

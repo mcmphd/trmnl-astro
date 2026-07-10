@@ -85,8 +85,18 @@ year, which reads as noise rather than a fixed reference frame.
 29.53-day synodic month — fine for a decorative illumination-fraction
 render, not for precision timekeeping.
 
-**Twilight bands are flat gray steps, not hatch patterns.** A hatch-pattern
-treatment (matching the engraved-dial aesthetic this project started from)
-was considered but dropped for time; flat grays dither cleanly and are
-easy to verify programmatically. Worth revisiting if the rendered device
-output looks muddy.
+**Twilight bands are diagonal hatch patterns, not flat grays.** An earlier
+version used flat gray fills (64/128/192) for astronomical/nautical/civil
+twilight. Simulating TRMNL's two plausible rendering paths locally —
+`Image.convert("1")` (Floyd-Steinberg dither) vs. a naive `> 127` threshold
+— showed the flat grays survived dithering but **collapsed to solid
+black/white and erased the twilight structure entirely under simple
+thresholding**. Since which path TRMNL's pipeline actually uses for an
+embedded `<img>` couldn't be confirmed without live device access, the
+bands were switched to diagonal hatching at three densities (already pure
+black/white, so both paths render them identically) — same fix that made
+the moon crescent robust, applied to the twilight ring. Known remaining
+limitation: each twilight stage is only ~8–10° of arc, so the three
+densities are hard to tell apart by eye at this ring size even though they
+survive processing correctly — an inherent tension between ring
+compactness and stage count, not a rendering bug.
