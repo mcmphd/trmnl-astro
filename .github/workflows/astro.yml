@@ -27,14 +27,24 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Render all four layout sizes
+      - name: Resolve zip to lat/lon/tz
+        id: geo
         env:
-          ASTRO_LAT: ${{ vars.ASTRO_LAT }}
-          ASTRO_LON: ${{ vars.ASTRO_LON }}
-          ASTRO_TZ: ${{ vars.ASTRO_TZ }}
+          ASTRO_ZIP: ${{ vars.ASTRO_ZIP }}
+        run: |
+          python -c "
+          from astro_core import resolve_zip
+          lat, lon, tz = resolve_zip('$ASTRO_ZIP')
+          print(f'lat={lat}')
+          print(f'lon={lon}')
+          print(f'tz={tz}')
+          " >> "$GITHUB_OUTPUT"
+
+      - name: Render all four layout sizes
         run: |
           for layout in full half_horizontal half_vertical quadrant; do
-            python render_dashboard.py --lat "$ASTRO_LAT" --lon "$ASTRO_LON" --tz "$ASTRO_TZ" \
+            python render_dashboard.py --lat "${{ steps.geo.outputs.lat }}" \
+              --lon "${{ steps.geo.outputs.lon }}" --tz "${{ steps.geo.outputs.tz }}" \
               --layout "$layout" --out "data/dashboard_${layout}.png"
           done
 

@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 
-from astro_core import equation_of_time_minutes, eot_calendar_year, moon_illumination, moon_phase_name, sun_times
+from astro_core import equation_of_time_minutes, eot_calendar_year, moon_illumination, moon_phase_name, resolve_zip, sun_times
 
 SS = 4  # supersample factor
 
@@ -211,9 +211,9 @@ def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometr
         draw.line([p0, p1], fill=BLACK, width=SS)
 
     now_ang = a(now_local)
-    tip = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang)
-    base_l = polar_point(cx, cy, r_out + 2 * scale * SS, now_ang - 3)
-    base_r = polar_point(cx, cy, r_out + 2 * scale * SS, now_ang + 3)
+    tip = polar_point(cx, cy, r_out + 2 * scale * SS, now_ang)
+    base_l = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang - 3)
+    base_r = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang + 3)
     draw.polygon([tip, base_l, base_r], fill=BLACK)
 
     # noon / midnight anchor labels, just inside the ring. Nudged off the
@@ -346,7 +346,8 @@ def draw_text_panel(draw, tx, ty, tw, now_local, today, times, eot_min, fraction
     f_value = font(28, bold=True)
     f_small = font(13)
 
-    eot_word = "Fast" if eot_min > 0 else "Slow"
+    eot_word = "FAST" if eot_min > 0 else "SLOW"
+    eot_line = f"{abs(eot_min):.1f} min {eot_word}"
     day_len = times["sunset"] - times["sunrise"]
     day_len_h = day_len.seconds // 3600
     day_len_m = (day_len.seconds % 3600) // 60
@@ -355,7 +356,7 @@ def draw_text_panel(draw, tx, ty, tw, now_local, today, times, eot_min, fraction
         (now_local.strftime("%A, %B %-d, %Y"), f_title, 0),
         ("", f_small, 6),
         ("EQUATION OF TIME", f_label, 10),
-        (eot_word, f_value, 2),
+        (eot_line, f_value, 2),
         ("", f_small, 10),
         ("MOON", f_label, 10),
         (moon_phase_name(today), f_value, 2),
@@ -423,12 +424,22 @@ if __name__ == "__main__":
     import argparse
 
     p = argparse.ArgumentParser()
-    p.add_argument("--lat", type=float, required=True)
-    p.add_argument("--lon", type=float, required=True)
-    p.add_argument("--tz", required=True)
+    p.add_argument("--zip", dest="zip_code", help="US zip code -- resolves lat/lon/tz, overrides --lat/--lon/--tz")
+    p.add_argument("--lat", type=float)
+    p.add_argument("--lon", type=float)
+    p.add_argument("--tz")
     p.add_argument("--layout", choices=list(LAYOUTS), default="full")
     p.add_argument("--out", default=None)
     args = p.parse_args()
+
+    if args.zip_code:
+        lat, lon, tzname = resolve_zip(args.zip_code)
+        print(f"resolved zip {args.zip_code} -> lat={lat} lon={lon} tz={tzname}")
+    elif args.lat is not None and args.lon is not None and args.tz:
+        lat, lon, tzname = args.lat, args.lon, args.tz
+    else:
+        p.error("either --zip, or all of --lat/--lon/--tz, is required")
+
     out = args.out or f"data/dashboard_{args.layout}.png"
-    render(args.lat, args.lon, args.tz, out, layout=args.layout)
+    render(lat, lon, tzname, out, layout=args.layout)
     print("wrote", out)

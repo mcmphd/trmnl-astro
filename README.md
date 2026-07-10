@@ -60,9 +60,11 @@ dashboard — it displays the exact Webhook URL to POST to. If it says
 
 ## Setup
 
-1. **Repo variables** (Settings → Secrets and variables → Actions → Variables):
-   - `ASTRO_LAT`, `ASTRO_LON` — your coordinates.
-   - `ASTRO_TZ` — IANA timezone name, e.g. `America/New_York`.
+1. **Repo variable** (Settings → Secrets and variables → Actions → Variables):
+   - `ASTRO_ZIP` — a US zip code, e.g. `23221`. The workflow resolves this
+     to lat/lon (via Zippopotam.us, free/no key) and IANA timezone (via
+     `timezonefinder`, computed offline from those coordinates) once per
+     run, then reuses that for all four layout renders.
 2. **Repo secret**: `TRMNL_PLUGIN_UUID` — from your TRMNL Private Plugin
    (Strategy = Webhook). The UUID is the path segment in the plugin's
    webhook URL.
@@ -80,7 +82,8 @@ dashboard — it displays the exact Webhook URL to POST to. If it says
 ```sh
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python render_dashboard.py --lat 37.5407 --lon -77.4360 --tz "America/New_York" --layout full
+python render_dashboard.py --zip 23221 --layout full
+# or supply coordinates directly: --lat 37.5407 --lon -77.4360 --tz "America/New_York"
 # --layout also accepts half_horizontal / half_vertical / quadrant
 # (defaults to writing data/dashboard_<layout>.png if --out isn't given)
 ```

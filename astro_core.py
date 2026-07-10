@@ -6,12 +6,33 @@ https://equation-of-time.info/calculating-the-equation-of-time
 verified there to sub-second accuracy against the source).
 
 Sun/twilight and moon phase: astral (pure-Python, no compiled deps).
+
+Zip code resolution: Zippopotam.us (free, no API key) for lat/lon, then
+timezonefinder (offline, no API call) for the IANA tz name from those
+coordinates -- US zip codes only, matching this project's single-location
+scope.
 """
 import math
 from datetime import date, datetime, timedelta
 
+import requests
 from astral import LocationInfo, moon as astral_moon
 from astral.sun import sun as astral_sun, dawn as astral_dawn, dusk as astral_dusk
+from timezonefinder import TimezoneFinder
+
+_tf = TimezoneFinder()
+
+
+def resolve_zip(zip_code: str) -> tuple[float, float, str]:
+    """Return (lat, lon, iana_tzname) for a US zip code."""
+    resp = requests.get(f"https://api.zippopotam.us/us/{zip_code}", timeout=10)
+    resp.raise_for_status()
+    place = resp.json()["places"][0]
+    lat, lon = float(place["latitude"]), float(place["longitude"])
+    tzname = _tf.timezone_at(lat=lat, lng=lon)
+    if tzname is None:
+        raise ValueError(f"could not resolve a timezone for zip {zip_code} at ({lat}, {lon})")
+    return lat, lon, tzname
 
 SYNODIC_MONTH_DAYS = 29.530588853
 
