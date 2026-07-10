@@ -1,9 +1,21 @@
+<style>
+  .astro-img--landscape { display: block; }
+  .astro-img--portrait { display: none; }
+  @media (orientation: portrait) {
+    .astro-img--landscape { display: none; }
+    .astro-img--portrait { display: block; }
+  }
+</style>
 <div class="layout layout--stretch-x">
   <div class="frame" style="width: 100%; text-align: center;">
     {% if image_url_full %}
-      <img src="{{ image_url_full }}" style="width: 100%; height: auto;" />
-    {% else %}
-      <span class="value">No image yet</span>
+      <img class="astro-img--landscape" src="{{ image_url_full }}" style="width: 100%; height: auto;" />
     {% endif %}
+    {% if image_url_full_portrait %}
+      <img class="astro-img--portrait" src="{{ image_url_full_portrait }}" style="width: 100%; height: auto;" />
+    {% endif %}
+    {% unless image_url_full or image_url_full_portrait %}
+      <span class="value">No image yet</span>
+    {% endunless %}
   </div>
 </div>

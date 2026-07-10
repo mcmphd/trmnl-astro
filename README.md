@@ -51,10 +51,11 @@ image bytes, the Action:
    `main`) so TRMNL always fetches the exact new images instead of a
    possibly CDN-cached stale one.
 3. Each `templates/<layout>.liquid` is just
-   `<img src="{{ image_url_<layout> }}">` — TRMNL's own rendering pipeline
-   dithers it to the device's e-ink bitmap the same way it dithers
-   everything else, so the images are left as antialiased 8-bit grayscale
-   rather than pre-dithered.
+   `<img src="{{ image_url_<layout> }}">` (the Full template additionally
+   picks between landscape/portrait via CSS — see "Portrait devices"
+   below) — TRMNL's own rendering pipeline dithers it to the device's
+   e-ink bitmap the same way it dithers everything else, so the images
+   are left as antialiased 8-bit grayscale rather than pre-dithered.
 
 **Verify the webhook domain before relying on this.** The docs I could
 fetch state the endpoint as `https://trmnl.com/api/custom_plugins/{UUID}`,
@@ -79,13 +80,39 @@ dashboard — it displays the exact Webhook URL to POST to. If it says
    dashboard" → Run workflow) to test before waiting on the 6-hour cron.
 4. **TRMNL plugin markup**: paste each `templates/<layout>.liquid` into
    the matching tab in the plugin's markup editor:
-   - Full (800×480) → `templates/full.liquid`
-   - Full portrait (480×800) → `templates/full_portrait.liquid` — for
-     devices that request a native portrait image (e.g. XTEink), rather
-     than rotating the landscape Full image themselves
+   - Full (800×480) → `templates/full.liquid` — **this one auto-selects
+     landscape vs. portrait** (see "Portrait devices" below); use it even
+     if your device (e.g. XTEink with TRMNL set to Portrait in its device
+     settings) is portrait-oriented.
    - Half horizontal (800×240) → `templates/half_horizontal.liquid`
    - Half vertical (400×480) → `templates/half_vertical.liquid`
    - Quadrant (400×240) → `templates/quadrant.liquid`
+
+### Portrait devices (e.g. XTEink)
+
+Orientation lives in TRMNL's own device settings, not the reader's
+firmware — so the same plugin/template needs to serve the right image
+either way, without you having to swap templates by hand if you ever flip
+a device between portrait and landscape.
+
+`templates/full.liquid` embeds **both** `image_url_full` (800×480) and
+`image_url_full_portrait` (480×800), each with a CSS
+`@media (orientation: portrait)` rule that shows only the matching one.
+This assumes TRMNL's rendering pipeline screenshots your markup at the
+device's actual viewport dimensions (standard for HTML-to-e-ink systems,
+but **not something I could confirm in TRMNL's public docs** — I searched
+and couldn't find documentation either confirming or denying that CSS
+orientation media queries are honored). It fails safe either way: if
+media queries aren't honored, you just always get the landscape image,
+same as before this change.
+
+**Please verify on your actual device** which image shows up with your
+Portrait TRMNL setting. If the CSS approach doesn't work, fall back to
+assigning `templates/full_portrait.liquid` (unconditionally shows
+`image_url_full_portrait`, no orientation detection) directly to whatever
+plugin instance/playlist slot your portrait device pulls from — the
+image itself already renders correctly either way, this is purely about
+which template file gets the right one in front of the device.
 
 ## Local testing
 
