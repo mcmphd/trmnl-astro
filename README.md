@@ -52,10 +52,11 @@ image bytes, the Action:
    possibly CDN-cached stale one.
 3. Each `templates/<layout>.liquid` is just
    `<img src="{{ image_url_<layout> }}">` (the Full template additionally
-   picks between landscape/portrait via CSS — see "Portrait devices"
-   below) — TRMNL's own rendering pipeline dithers it to the device's
-   e-ink bitmap the same way it dithers everything else, so the images
-   are left as antialiased 8-bit grayscale rather than pre-dithered.
+   picks between landscape/portrait via TRMNL's own `portrait:` variant
+   classes — see "Portrait devices" below) — TRMNL's own rendering
+   pipeline dithers it to the device's e-ink bitmap the same way it
+   dithers everything else, so the images are left as antialiased 8-bit
+   grayscale rather than pre-dithered.
 
 **Verify the webhook domain before relying on this.** The docs I could
 fetch state the endpoint as `https://trmnl.com/api/custom_plugins/{UUID}`,
@@ -96,19 +97,33 @@ either way, without you having to swap templates by hand if you ever flip
 a device between portrait and landscape.
 
 `templates/full.liquid` embeds **both** `image_url_full` (800×480) and
-`image_url_full_portrait` (480×800), each with a CSS
-`@media (orientation: portrait)` rule that shows only the matching one.
-This assumes TRMNL's rendering pipeline screenshots your markup at the
-device's actual viewport dimensions (standard for HTML-to-e-ink systems,
-but **not something I could confirm in TRMNL's public docs** — I searched
-and couldn't find documentation either confirming or denying that CSS
-orientation media queries are honored). It fails safe either way: if
-media queries aren't honored, you just always get the landscape image,
-same as before this change.
+`image_url_full_portrait` (480×800). Per
+[TRMNL's Framework docs](https://trmnl.app/framework/docs/3.1/responsive),
+**TRMNL does not use standard CSS media queries at all** — it has its own
+Tailwind-style variant-class system (`sm:`/`md:`/`lg:` size breakpoints,
+`1bit:`/`2bit:`/`4bit:` color-depth breakpoints, and a `portrait:`
+orientation prefix, all freely combinable, e.g. `md:portrait:4bit:hidden`
+from their docs). An earlier version of this template used a plain
+`@media (orientation: portrait)` CSS block, which almost certainly does
+**not** work against their rendering pipeline — corrected to use their
+actual `hidden`/`visible` [visibility utilities](https://trmnl.app/framework/docs/3.1/visibility)
+combined with the `portrait:` prefix instead:
 
-**Please verify on your actual device** which image shows up with your
-Portrait TRMNL setting. If the CSS approach doesn't work, fall back to
-assigning `templates/full_portrait.liquid` (unconditionally shows
+```html
+<img class="visible portrait:hidden" src="{{ image_url_full }}" ... />
+<img class="hidden portrait:visible" src="{{ image_url_full_portrait }}" ... />
+```
+
+"Landscape is the default, only `portrait:` variants are provided" per
+their docs — so the landscape image is `visible` by default and hidden
+in portrait, and vice versa for the portrait image.
+
+**Please verify on your actual device** that this shows the right image
+for your Portrait TRMNL setting — I validated the Liquid template parses
+and renders both branches correctly, but couldn't render it through
+TRMNL's actual framework CSS to confirm the `portrait:` variant behaves
+as their docs describe. If it doesn't work, fall back to assigning
+`templates/full_portrait.liquid` (unconditionally shows
 `image_url_full_portrait`, no orientation detection) directly to whatever
 plugin instance/playlist slot your portrait device pulls from — the
 image itself already renders correctly either way, this is purely about
