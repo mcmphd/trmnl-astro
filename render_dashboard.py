@@ -50,7 +50,7 @@ _REF_R_RING_OUT = 215
 _REF_R_RING_IN = 185
 _REF_R_EOT_BASE = 120
 _REF_R_EOT_AMP = 2.727  # px per EoT-minute
-_REF_R_MOON = 55
+_REF_R_MOON = 55 * 0.95  # 5% smaller -- was overlapping the Pisces glyph
 
 
 class Geometry:
@@ -297,32 +297,37 @@ def draw_eot_loop(draw: ImageDraw.ImageDraw, geo: Geometry, today, year_points, 
             draw.ellipse((p[0] - halo_r, p[1] - halo_r, p[0] + halo_r, p[1] + halo_r), fill=WHITE)
             draw.text((p[0] - w / 2, p[1] - h / 2), letter, fill=BLACK, font=f_initial)
 
-    # zodiac signs, at their actual entry dates (distinct from the calendar
-    # month-start dots above), labeled on the inside of the loop. Full-size
-    # layouts show all 12; smaller layouts show only the currently active sign.
-    f_month = symbol_font(13)
-    active_glyph = None if zodiac_all else current_zodiac_glyph(today)
-    zodiac_starts = {(month, day): glyph for month, day, glyph in ZODIAC_SIGNS}
-    for i, (doy, dd, eot_min) in enumerate(year_points):
-        glyph = zodiac_starts.get((dd.month, dd.day))
-        if glyph is None:
-            continue
-        if not zodiac_all and glyph != active_glyph:
-            continue
-        ang = angle_for_index(i)
-        r = eot_radius(eot_min)
-        lp = polar_point(cx, cy, r - 22 * scale * SS, ang)
-        bbox = draw.textbbox((0, 0), glyph, font=f_month)
-        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        draw.text((lp[0] - w / 2, lp[1] - h / 2), glyph, fill=BLACK, font=f_month)
-
-    # today marker (open ring)
+    # today marker (open ring around a filled center dot)
     ang0 = angle_for_index(today_idx)
     r0 = eot_radius(year_points[today_idx][2])
     p = polar_point(cx, cy, r0, ang0)
     rr = max(4 * SS, 7 * scale * SS)
     draw.ellipse((p[0] - rr, p[1] - rr, p[0] + rr, p[1] + rr), outline=BLACK, width=int(2 * SS))
     draw.ellipse((p[0] - 2 * SS, p[1] - 2 * SS, p[0] + 2 * SS, p[1] + 2 * SS), fill=BLACK)
+
+    # zodiac signs, labeled on the inside of the loop. Full-size layouts show
+    # all 12, each at its own actual entry date (distinct from the calendar
+    # month-letter markers above). Smaller layouts show only the currently
+    # active sign -- positioned next to the today-marker dot rather than at
+    # the sign's own entry date, so it reads as "you are here, in this sign"
+    # without having to trace the loop back to a date that could be nearly
+    # a month away from today.
+    f_month = symbol_font(13)
+
+    def draw_zodiac_glyph(glyph, ang, r):
+        lp = polar_point(cx, cy, r - 22 * scale * SS, ang)
+        bbox = draw.textbbox((0, 0), glyph, font=f_month)
+        w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((lp[0] - w / 2, lp[1] - h / 2), glyph, fill=BLACK, font=f_month)
+
+    if zodiac_all:
+        zodiac_starts = {(month, day): glyph for month, day, glyph in ZODIAC_SIGNS}
+        for i, (doy, dd, eot_min) in enumerate(year_points):
+            glyph = zodiac_starts.get((dd.month, dd.day))
+            if glyph is not None:
+                draw_zodiac_glyph(glyph, angle_for_index(i), eot_radius(eot_min))
+    else:
+        draw_zodiac_glyph(current_zodiac_glyph(today), ang0, r0)
 
 
 def draw_moon(draw_target: Image.Image, geo: Geometry, fraction: float, waxing: bool):

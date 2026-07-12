@@ -9,19 +9,24 @@ image directly rather than rotating the landscape one.
 
 - **Center**: moon phase disc (illuminated fraction + waxing/waning side,
   phase name shown in the text panel — no illumination % shown, just the
-  name, e.g. "Waning Crescent").
+  name, e.g. "Waning Crescent"). Sized 5% smaller than its first pass,
+  which was large enough to overlap the ♓ Pisces glyph on the loop above it.
 - **Middle ring**: Equation of Time polar plot — one point per day of the
   year, angle = day-of-year (Jan 1 at top, clockwise), radius = EoT minutes
   offset from a baseline circle. Today's position is marked with an open
-  ring. The 12 calendar month-start days are marked with a single-letter
-  abbreviation (J/F/M/A/M/J/J/A/S/O/N/D) sitting right on the loop, each
-  with a small white halo so it stays legible against the loop's own black
-  line. Zodiac sign glyphs are labeled separately, on the *inside* of the
-  loop, at each sign's actual entry date (e.g. ♈ Aries on Mar 21) —
-  deliberately distinct from the month-letter markers, which mark calendar
-  months, not zodiac boundaries. Full and Full portrait (which have the
-  room) show all 12 signs; the other six layouts show only whichever sign
-  is currently active. Fourier method from
+  ring around a filled center dot. The 12 calendar month-start days are
+  marked with a single-letter abbreviation (J/F/M/A/M/J/J/A/S/O/N/D)
+  sitting right on the loop, each with a small white halo so it stays
+  legible against the loop's own black line. Zodiac sign glyphs are
+  labeled separately, on the *inside* of the loop — deliberately distinct
+  from the month-letter markers, which mark calendar months, not zodiac
+  boundaries. Full and Full portrait (which have the room) show all 12
+  signs, each at its own actual entry date (e.g. ♈ Aries on Mar 21); the
+  other six layouts show only whichever sign is currently active,
+  positioned next to the today-marker dot rather than at its own entry
+  date — showing it there instead reads as "you are here, in this sign"
+  at a glance, rather than sending the eye off to a date that could be
+  most of a month away from today. Fourier method from
   [equation-of-time.info](https://equation-of-time.info/calculating-the-equation-of-time)
   (same formula previously verified in a Swift watch app). Text panel
   shows e.g. "5.6 min SLOW" (magnitude + direction word, sign dropped
