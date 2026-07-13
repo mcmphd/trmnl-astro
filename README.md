@@ -7,6 +7,12 @@ Half vertical, Quadrant), each with a native-portrait counterpart (width
 and height swapped) for devices like XTEink that request a portrait-shaped
 image directly rather than rotating the landscape one.
 
+There's also an [on-device iOS prototype](scriptable/README.md) — a
+Scriptable widget port that computes and draws everything locally (no
+server, no webhook), using the phone's own location and timezone. Same
+astronomy math, ported to JS; see that README for status (prototype,
+not yet verified on real hardware).
+
 - **Center**: moon phase disc (illuminated fraction + waxing/waning side,
   phase name shown in the text panel — no illumination % shown, just the
   name, e.g. "Waning Crescent"). Sized 5% smaller than its first pass,
