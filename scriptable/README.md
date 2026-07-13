@@ -44,30 +44,51 @@ Scriptable throws at runtime. Fixed.
 "medium"/"large" widget frame (only "small" is composed for so far), and
 general on-device performance over repeated refreshes.
 
-## Color and "Liquid Glass" background
+## Color, emoji, and background
 
-Unlike the monochrome e-ink TRMNL version, this renders in full color and
-with a transparent background:
+Unlike the monochrome e-ink TRMNL version, this renders in full color:
 
 - **Daylight ring**: sky blue (day), three teal shades graduating toward
   night (civil → nautical → astronomical twilight), Payne's grey (night).
   These replace the TRMNL version's diagonal-hatch twilight bands — that
   hatching only existed to survive 1-bit e-ink dithering, so plain color
   fills replace it directly, no workaround needed.
-- **Noon/midnight markers**: ☀️/🌙 emoji instead of the TRMNL version's
-  white/black circles.
-- **Background**: transparent (`ctx.opaque = false`, no fill), so the
-  widget shows through to your Home Screen wallpaper/Liquid Glass material
-  rather than a solid white card. This relies on not setting
-  `widget.backgroundColor` in `main()` — that would paint over the
-  transparency.
-- **Month letters**: sized up slightly (7pt → 9.5pt at reference scale)
-  for legibility.
+- **Noon/midnight markers**: 🌞/🌛 ("sun with face" / "first quarter moon
+  with face") instead of the TRMNL version's white/black circles.
+- **Month letters**: sized up (7pt → 9.5pt at reference scale) for
+  legibility.
+- **Ring size**: the whole composition is ~12% smaller within the same
+  canvas (`RING_SHRINK` near the top of `astro-widget.js`), leaving more
+  margin around it.
 
-Exact hex values (`SKY_BLUE`, `TWILIGHT_TEAL_*`, `PAYNES_GREY` near the
-top of `astro-widget.js`) are my best approximation of the named colors
-requested — nudge them directly if they don't match what you had in mind;
-I have no way to preview actual color rendering from this environment.
+Exact hex values (`SKY_BLUE`, `TWILIGHT_TEAL_*`, `PAYNES_GREY`) are my best
+approximation of the named colors requested — nudge them directly if they
+don't match what you had in mind; I have no way to preview actual color
+rendering from this environment. Same for the emoji vertical-centering
+nudge (`yNudge` near the sun/moon drawing code) — tuned from a screenshot,
+may need further adjustment.
+
+### Background: true transparency isn't possible on iOS Home Screen widgets
+
+First attempt used a fully transparent rendered image (`ctx.opaque =
+false`, no fill) hoping iOS would show the wallpaper through it. Confirmed
+on real hardware that this doesn't work: **iOS forces its own opaque/light
+backing behind every Home Screen widget regardless of what alpha you
+draw**, which is why the widget still showed stark white. This isn't a bug
+in this script — it's a platform limitation. The community's "invisible
+widget" workaround fakes it by screenshotting the actual wallpaper,
+cropping to the widget's exact position and size, and using that
+screenshot as the background image (see e.g. the [Automators Talk
+thread on invisible Scriptable widgets](https://talk.automators.fm/t/invisible-widget-generator/9235)) —
+essentially camouflage, not real transparency, and it breaks if you change
+wallpaper or the widget's position. **Not implemented here** given that
+fragility; open to adding it if you want the full effect.
+
+What's here instead: `widget.backgroundColor` is set explicitly to a pale,
+cool-toned color (`#EEF1F4`) to override iOS's forced white with something
+closer to a frosted-glass look, while the rendered image itself stays
+transparent so the ring's circular shape floats on that color rather than
+sitting in a hard-edged square card.
 
 ## Setup
 

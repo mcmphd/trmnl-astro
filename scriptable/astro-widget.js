@@ -41,8 +41,8 @@ const TWILIGHT_TEAL_NEAR_DAY = new Color("#8FBFBA");
 const TWILIGHT_TEAL_MID = new Color("#5E9C97");
 const TWILIGHT_TEAL_NEAR_NIGHT = new Color("#3A6E6A");
 const PAYNES_GREY = new Color("#536878");
-const SUN_EMOJI = "☀️";
-const MOON_EMOJI = "🌙";
+const SUN_EMOJI = "🌞"; // "sun with face" -- smiling sun
+const MOON_EMOJI = "🌛"; // "first quarter moon with face" -- smiling crescent profile
 
 // ---- geometry (mirrors render_dashboard.py's Geometry class) -----------
 
@@ -51,11 +51,15 @@ const MOON_EMOJI = "🌙";
 // stroke widths don't" principle as the Python version, adapted for a much
 // smaller on-device canvas than TRMNL's 800x480.
 const REF_SIZE = 300;
-const REF_R_RING_OUT = 140;
-const REF_R_RING_IN = 120;
-const REF_R_EOT_BASE = 78;
-const REF_R_EOT_AMP = 1.8; // points per EoT-minute
-const REF_R_MOON = 34 * 0.95; // 5% smaller, same fix as the Python version (Pisces clearance)
+// Shrinks the whole composition within the same REF_SIZE canvas, leaving
+// more margin around the ring -- tune this one number rather than each
+// radius individually.
+const RING_SHRINK = 0.88;
+const REF_R_RING_OUT = 140 * RING_SHRINK;
+const REF_R_RING_IN = 120 * RING_SHRINK;
+const REF_R_EOT_BASE = 78 * RING_SHRINK;
+const REF_R_EOT_AMP = 1.8 * RING_SHRINK; // points per EoT-minute
+const REF_R_MOON = 34 * 0.95 * RING_SHRINK; // 0.95 = 5% smaller, same fix as the Python version (Pisces clearance)
 
 function makeGeometry(canvasSize) {
   const scale = canvasSize / REF_SIZE;
@@ -215,13 +219,21 @@ function drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times) {
   const rMid = (rIn + rOut) / 2;
   const emojiFont = Font.systemFont(11 * scale);
   ctx.setFont(emojiFont);
+  // Empirical vertical nudge, tuned from an on-device screenshot: both
+  // emoji rendered noticeably above the intended center of their bounding
+  // box (the sun sat high/outside the day band, the moon sat high/inside
+  // toward the loop) -- drawTextInRect apparently doesn't vertically
+  // center emoji glyphs the way it would plain text, or color-emoji font
+  // metrics carry extra headroom. Shifting the box down compensates;
+  // may need further tuning.
+  const yNudge = 0.35;
   for (const [ang, emoji] of [
     [0, SUN_EMOJI],
     [180, MOON_EMOJI],
   ]) {
     const p = polarPoint(cx, cy, rMid, ang);
     const w = 11 * scale;
-    ctx.drawTextInRect(emoji, new Rect(p.x - w, p.y - w, w * 2, w * 2));
+    ctx.drawTextInRect(emoji, new Rect(p.x - w, p.y - w + yNudge * w, w * 2, w * 2));
   }
 }
 
@@ -440,11 +452,19 @@ async function renderImage(canvasSize, includeText, lat, lon, tzOffsetMinutes, w
   // any other property or drawing call -- Scriptable enforces this at
   // runtime (confirmed on-device: "Cannot change whether to respect the
   // screen scale after performing one of the previous operations").
-  // Transparent background (opaque=false, no fill) rather than solid
-  // white -- for a translucent/"liquid glass" widget, iOS needs to see
-  // through to the wallpaper wherever this image doesn't paint anything.
-  // widget.backgroundImage in main() relies on this: don't also set
-  // widget.backgroundColor, or it'll paint over the transparency.
+  //
+  // opaque=false with no background fill: this image itself has a
+  // transparent backdrop. Confirmed on real hardware that this alone does
+  // NOT make the widget see-through, though -- iOS does not support true
+  // transparency for Home Screen widgets; it forces its own opaque/light
+  // backing behind whatever you draw regardless of alpha. (The "invisible
+  // widget" trick some people use fakes it by screenshotting the actual
+  // wallpaper and using that as the background image -- not implemented
+  // here.) `widget.backgroundColor` in main() is set explicitly instead,
+  // to override iOS's forced default (stark white) with something
+  // softer; kept the drawn image itself transparent so its circular
+  // shape floats on that color rather than sitting in a hard-edged
+  // square.
   const ctx = new DrawContext();
   ctx.respectScreenScale = true;
   ctx.size = new Size(width, canvasSize);
@@ -519,6 +539,12 @@ async function main() {
     const image = await renderImage(canvasSize, false, lat, lon, tzOffsetMinutes);
     const widget = new ListWidget();
     widget.backgroundImage = image;
+    // True transparency isn't available (see the DrawContext setup
+    // comment in renderImage) -- this softens iOS's forced default
+    // (stark white) instead. Pale, slightly cool/blue-tinted to read as
+    // "glass" rather than "paper"; adjust the hex directly if it's not
+    // the right shade.
+    widget.backgroundColor = new Color("#EEF1F4");
     Script.setWidget(widget);
   } else {
     // Running interactively in the app: show the full graphic+text
