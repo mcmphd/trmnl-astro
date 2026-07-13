@@ -64,9 +64,25 @@ Unlike the monochrome e-ink TRMNL version, this renders in full color:
 Exact hex values (`SKY_BLUE`, `TWILIGHT_TEAL_*`, `PAYNES_GREY`) are my best
 approximation of the named colors requested — nudge them directly if they
 don't match what you had in mind; I have no way to preview actual color
-rendering from this environment. Same for the emoji vertical-centering
-nudge (`yNudge` near the sun/moon drawing code) — tuned from a screenshot,
-may need further adjustment.
+rendering from this environment.
+
+**`drawTextInRect` does not center text**, contrary to what its name
+suggests — confirmed from an on-device screenshot showing both the sun/moon
+emoji AND the plain month-letters shifted up and to the left of their
+intended position, so it isn't an emoji-glyph-metrics quirk, it's
+`drawTextInRect` itself (apparently left/top-aligning). `drawCenteredText()`
+applies an empirical compensation (`TEXT_NUDGE_FRAC`, currently 0.45) shared
+by every text-on-the-graphic call site — one place to retune if a
+particular glyph still isn't quite centered.
+
+**Known remaining issue, not yet addressed**: the zodiac glyph showed as a
+small tofu/placeholder box in the one on-device screenshot seen so far,
+rather than the intended character. The README previously noted this was
+*unverified* whether iOS's system font covers the astrological Unicode
+block (U+2648-2653) — that screenshot suggests it may not, at least not at
+the font/size used. Not fixed yet since it wasn't reported as something to
+fix this round; likely needs either a different system font name or a
+larger point size to resolve.
 
 ### Background: true transparency isn't possible on iOS Home Screen widgets
 
@@ -85,10 +101,15 @@ wallpaper or the widget's position. **Not implemented here** given that
 fragility; open to adding it if you want the full effect.
 
 What's here instead: `widget.backgroundColor` is set explicitly to a pale,
-cool-toned color (`#EEF1F4`) to override iOS's forced white with something
-closer to a frosted-glass look, while the rendered image itself stays
-transparent so the ring's circular shape floats on that color rather than
-sitting in a hard-edged square card.
+cool-toned color to override iOS's forced white with something closer to a
+frosted-glass look, while the rendered image itself stays transparent so
+the ring's circular shape floats on that color rather than sitting in a
+hard-edged square card. It's also **day/night aware**: `renderImage()`
+returns `isDaytime` (now between sunrise and sunset) alongside the image,
+and `main()` picks a slightly darker shade for daytime (`#D7DEE3`) than
+night (`#EEF1F4`) — the paler night shade read fine against the dark
+Payne's grey band, but felt washed out against the bright sky-blue day
+band.
 
 ## Setup
 

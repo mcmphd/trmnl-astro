@@ -119,6 +119,21 @@ function localCalendarDay(trueNowUTC, tzOffsetMinutes) {
 
 // ---- drawing -------------------------------------------------------------
 
+// `drawTextInRect` does not center text within the given rect the way its
+// name suggests -- confirmed from on-device screenshots showing BOTH the
+// sun/moon emoji AND the plain month-letters shifted up and to the left
+// of where they were meant to sit (so this isn't an emoji-specific glyph-
+// metrics quirk, it's `drawTextInRect` itself, apparently left/top-
+// aligning). This applies an empirical compensation so the visual glyph
+// centers on (cx, cy): nudge is a fraction of `halfSize` shifted right
+// and down. Shared by every text-on-the-graphic call site so there's one
+// place to retune if it's still not quite right.
+const TEXT_NUDGE_FRAC = 0.45;
+function drawCenteredText(ctx, text, cx, cy, halfSize) {
+  const n = TEXT_NUDGE_FRAC * halfSize;
+  ctx.drawTextInRect(text, new Rect(cx - halfSize + n, cy - halfSize + n, halfSize * 2, halfSize * 2));
+}
+
 // Builds a closed Path approximating an annulus wedge (pie-slice ring
 // segment) between two radii and two angles, by sampling points along
 // each arc -- Scriptable's Path has no native pie-slice primitive, so
@@ -219,21 +234,12 @@ function drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times) {
   const rMid = (rIn + rOut) / 2;
   const emojiFont = Font.systemFont(11 * scale);
   ctx.setFont(emojiFont);
-  // Empirical vertical nudge, tuned from an on-device screenshot: both
-  // emoji rendered noticeably above the intended center of their bounding
-  // box (the sun sat high/outside the day band, the moon sat high/inside
-  // toward the loop) -- drawTextInRect apparently doesn't vertically
-  // center emoji glyphs the way it would plain text, or color-emoji font
-  // metrics carry extra headroom. Shifting the box down compensates;
-  // may need further tuning.
-  const yNudge = 0.35;
   for (const [ang, emoji] of [
     [0, SUN_EMOJI],
     [180, MOON_EMOJI],
   ]) {
     const p = polarPoint(cx, cy, rMid, ang);
-    const w = 11 * scale;
-    ctx.drawTextInRect(emoji, new Rect(p.x - w, p.y - w + yNudge * w, w * 2, w * 2));
+    drawCenteredText(ctx, emoji, p.x, p.y, 11 * scale);
   }
 }
 
@@ -293,7 +299,7 @@ function drawEotLoop(ctx, geo, today, yearPoints, zodiacAll) {
     ctx.setFillColor(WHITE);
     ctx.fillEllipse(new Rect(p.x - haloR, p.y - haloR, haloR * 2, haloR * 2));
     ctx.setTextColor(BLACK);
-    ctx.drawTextInRect(letter, new Rect(p.x - haloR, p.y - haloR * 0.8, haloR * 2, haloR * 1.6));
+    drawCenteredText(ctx, letter, p.x, p.y, haloR);
   });
 
   // today marker: open ring around a filled center dot
@@ -317,8 +323,7 @@ function drawEotLoop(ctx, geo, today, yearPoints, zodiacAll) {
   ctx.setTextColor(BLACK);
   const drawZodiacGlyph = (glyph, ang, r) => {
     const lp = polarPoint(cx, cy, r - 11 * scale, ang);
-    const w = 9 * scale;
-    ctx.drawTextInRect(glyph, new Rect(lp.x - w, lp.y - w * 0.7, w * 2, w * 1.4));
+    drawCenteredText(ctx, glyph, lp.x, lp.y, 9 * scale);
   };
   if (zodiacAll) {
     const starts = {};
@@ -496,7 +501,8 @@ async function renderImage(canvasSize, includeText, lat, lon, tzOffsetMinutes, w
     );
   }
 
-  return ctx.getImage();
+  const isDaytime = !!(times.sunrise && times.sunset && nowUTC >= times.sunrise && nowUTC <= times.sunset);
+  return { image: ctx.getImage(), isDaytime };
 }
 
 async function resolveLocationAndTZ() {
@@ -536,20 +542,22 @@ async function main() {
     // text-panel layout for medium/large once the square case is
     // confirmed working on-device.
     const canvasSize = 300;
-    const image = await renderImage(canvasSize, false, lat, lon, tzOffsetMinutes);
+    const { image, isDaytime } = await renderImage(canvasSize, false, lat, lon, tzOffsetMinutes);
     const widget = new ListWidget();
     widget.backgroundImage = image;
     // True transparency isn't available (see the DrawContext setup
     // comment in renderImage) -- this softens iOS's forced default
     // (stark white) instead. Pale, slightly cool/blue-tinted to read as
     // "glass" rather than "paper"; adjust the hex directly if it's not
-    // the right shade.
-    widget.backgroundColor = new Color("#EEF1F4");
+    // the right shade. Darker during the day than at night -- the pale
+    // night shade reads fine against the dark Payne's grey band, but felt
+    // washed out against the bright sky blue day band.
+    widget.backgroundColor = new Color(isDaytime ? "#D7DEE3" : "#EEF1F4");
     Script.setWidget(widget);
   } else {
     // Running interactively in the app: show the full graphic+text
     // composition (mirrors the Python "full" layout) via Quick Look.
-    const image = await renderImage(300, true, lat, lon, tzOffsetMinutes);
+    const { image } = await renderImage(300, true, lat, lon, tzOffsetMinutes);
     await QuickLook.present(image);
   }
   Script.complete();
