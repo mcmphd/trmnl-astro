@@ -1,13 +1,16 @@
 // Astro Widget -- on-device iOS Scriptable port of the TRMNL astro
 // dashboard (moon phase / Equation of Time loop / daylight ring).
 //
-// UNVERIFIED ON DEVICE: I have no way to execute Scriptable's DrawContext
-// API from this environment (it's iOS-only). astro-core.js's math is
-// validated against the Python/astral reference values via Node (see
-// scriptable/README.md) -- everything below this line (all the actual
-// drawing) has only been checked by careful reading against Scriptable's
-// documented API, not by running it. Expect to debug real issues the
-// first time this runs in the app.
+// PARTIALLY VERIFIED ON DEVICE: I have no way to execute Scriptable's
+// DrawContext API from this environment (it's iOS-only), so this was
+// built by careful reading against Scriptable's documented API, not by
+// running it, then fixed against real on-device errors as they came in.
+// First on-device run hit one: `respectScreenScale` has to be set
+// immediately after `new DrawContext()`, before any other property or
+// drawing call, or Scriptable throws -- fixed. astro-core.js's math is
+// separately validated against the Python/astral reference values via
+// Node (see scriptable/README.md). Expect more real issues to surface as
+// testing continues -- this is still an early prototype.
 //
 // Needs astro-core.js saved alongside this script in the same Scriptable
 // folder (Scriptable > this script's folder), referenced by importModule.
@@ -447,12 +450,16 @@ async function renderImage(canvasSize, includeText, lat, lon, tzOffsetMinutes, w
   const geo = makeGeometry(canvasSize);
   const width = includeText ? canvasSize * 2.4 : canvasSize;
 
+  // respectScreenScale must be set immediately after construction, before
+  // any other property or drawing call -- Scriptable enforces this at
+  // runtime (confirmed on-device: "Cannot change whether to respect the
+  // screen scale after performing one of the previous operations").
   const ctx = new DrawContext();
+  ctx.respectScreenScale = true;
   ctx.size = new Size(width, canvasSize);
   ctx.opaque = true;
   ctx.setFillColor(WHITE);
   ctx.fillRect(new Rect(0, 0, width, canvasSize));
-  ctx.respectScreenScale = true;
 
   const times = AstroCore.sunTimes(today, lat, lon);
   drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times);
