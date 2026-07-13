@@ -123,18 +123,29 @@ This is documented TRMNL behavior — [their Framework docs](https://trmnl.app/f
 describe `portrait:` as a real, freely-combinable variant prefix (e.g.
 `md:portrait:4bit:hidden`), and it replaced an earlier, definitely-wrong
 attempt using plain `@media (orientation: portrait)` CSS (TRMNL doesn't
-process standard CSS at all). But on an actual XTEink with TRMNL's device
-setting flipped to Portrait, this toggle **did not fire** — the landscape
-image showed regardless. Best guess at why, unconfirmed: TRMNL's other
-documented breakpoints (`sm:`/`md:`/`lg:`) are tied to *specific native
-device models* (Kindle 2024, TRMNL OG, TRMNL V2), which suggests
-`portrait:` likely activates the same way — keyed to a recognized
-hardware profile, not a generic per-request viewport check. A BYOS device
-manually flagged "Portrait" in account settings may just never get
-tagged internally the way a native TRMNL device would be, so the
-`portrait:` branch never activates.
+process standard CSS at all).
 
-Whatever the exact cause, the fix is simple and now proven: assign
+Testing on real hardware narrowed down exactly where this breaks:
+**the markup editor's own preview toggles portrait/landscape correctly**
+(so `portrait:` is a real, working rendering feature, not a documentation
+fiction) — **but the Playlist view and the physical X4 device both
+ignore it**, showing the landscape image regardless of the device's
+Portrait setting. That split points at the actual mechanism: the editor's
+preview toggle is almost certainly a design-time-only simulation, decoupled
+from how a real device's screen gets rendered. Production delivery most
+likely renders each plugin size at one fixed, canonical viewport (Full is
+always rendered at 800×480, say) regardless of which specific device ends
+up requesting it — so `portrait:` has no live orientation signal to key off
+of outside the editor. Unconfirmed (I don't have visibility into TRMNL's
+render pipeline), but it fits both the docs (their other breakpoints are
+tied to fixed device-model dimensions, not a dynamic per-request check) and
+this editor-preview-vs-production split precisely.
+
+Practical implication: **don't expect this to start working for other
+devices, sizes, or a future TRMNL update** — treat the auto-detecting
+templates as unreliable in production generally, not just misconfigured
+for this one device. Whatever the exact cause, the fix is simple and now
+proven: assign
 `templates/<layout>_portrait.liquid` — unconditional, no orientation
 detection, just always shows the portrait image — directly to whatever
 plugin instance/playlist slot the portrait device pulls from. The
