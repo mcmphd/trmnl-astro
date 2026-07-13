@@ -94,59 +94,54 @@ dashboard — it displays the exact Webhook URL to POST to. If it says
    webhook URL.
 3. **Trigger a manual run** (Actions tab → "Render and push astro
    dashboard" → Run workflow) to test before waiting on the 6-hour cron.
-4. **TRMNL plugin markup**: paste each `templates/<layout>.liquid` into
-   the matching tab in the plugin's markup editor — **all four auto-select
-   landscape vs. portrait** (see "Portrait devices" below), so use these
-   even if your device (e.g. XTEink with TRMNL set to Portrait in its
-   device settings) is portrait-oriented:
-   - Full (800×480) → `templates/full.liquid`
-   - Half horizontal (800×240) → `templates/half_horizontal.liquid`
-   - Half vertical (400×480) → `templates/half_vertical.liquid`
-   - Quadrant (400×240) → `templates/quadrant.liquid`
+4. **TRMNL plugin markup**: paste `templates/<layout>.liquid` into the
+   matching tab in the plugin's markup editor — for a **portrait** device
+   like XTEink, use `templates/<layout>_portrait.liquid` instead (see
+   "Portrait devices" below for why):
+   - Full (800×480) → `templates/full.liquid`, or `full_portrait.liquid`
+     for a portrait device
+   - Half horizontal (800×240) → `templates/half_horizontal.liquid`, or
+     `half_horizontal_portrait.liquid`
+   - Half vertical (400×480) → `templates/half_vertical.liquid`, or
+     `half_vertical_portrait.liquid`
+   - Quadrant (400×240) → `templates/quadrant.liquid`, or
+     `quadrant_portrait.liquid`
 
 ### Portrait devices (e.g. XTEink)
 
-Orientation lives in TRMNL's own device settings, not the reader's
-firmware — so the same plugin/template needs to serve the right image
-either way, without you having to swap templates by hand if you ever flip
-a device between portrait and landscape.
-
-Each of the four templates above embeds **both** its landscape and
-portrait image (e.g. `templates/full.liquid` has `image_url_full` 800×480
-and `image_url_full_portrait` 480×800 — same pattern for Half
-horizontal/vertical and Quadrant, each against its own portrait
-counterpart, width and height swapped). Per
-[TRMNL's Framework docs](https://trmnl.app/framework/docs/3.1/responsive),
-**TRMNL does not use standard CSS media queries at all** — it has its own
-Tailwind-style variant-class system (`sm:`/`md:`/`lg:` size breakpoints,
-`1bit:`/`2bit:`/`4bit:` color-depth breakpoints, and a `portrait:`
-orientation prefix, all freely combinable, e.g. `md:portrait:4bit:hidden`
-from their docs). An earlier version of these templates used a plain
-`@media (orientation: portrait)` CSS block, which almost certainly does
-**not** work against their rendering pipeline — corrected to use their
-actual `hidden`/`visible` [visibility utilities](https://trmnl.app/framework/docs/3.1/visibility)
-combined with the `portrait:` prefix instead:
+**Confirmed on real hardware: assign the `_portrait.liquid` template
+directly, don't rely on auto-detection.** `templates/full.liquid` (and
+its Half/Quadrant siblings) embed both the landscape and portrait image
+behind TRMNL's `portrait:` variant-class toggle:
 
 ```html
 <img class="visible portrait:hidden" src="{{ image_url_full }}" ... />
 <img class="hidden portrait:visible" src="{{ image_url_full_portrait }}" ... />
 ```
 
-"Landscape is the default, only `portrait:` variants are provided" per
-their docs — so the landscape image is `visible` by default and hidden
-in portrait, and vice versa for the portrait image.
+This is documented TRMNL behavior — [their Framework docs](https://trmnl.app/framework/docs/3.1/responsive)
+describe `portrait:` as a real, freely-combinable variant prefix (e.g.
+`md:portrait:4bit:hidden`), and it replaced an earlier, definitely-wrong
+attempt using plain `@media (orientation: portrait)` CSS (TRMNL doesn't
+process standard CSS at all). But on an actual XTEink with TRMNL's device
+setting flipped to Portrait, this toggle **did not fire** — the landscape
+image showed regardless. Best guess at why, unconfirmed: TRMNL's other
+documented breakpoints (`sm:`/`md:`/`lg:`) are tied to *specific native
+device models* (Kindle 2024, TRMNL OG, TRMNL V2), which suggests
+`portrait:` likely activates the same way — keyed to a recognized
+hardware profile, not a generic per-request viewport check. A BYOS device
+manually flagged "Portrait" in account settings may just never get
+tagged internally the way a native TRMNL device would be, so the
+`portrait:` branch never activates.
 
-**Please verify on your actual device** that this shows the right image
-for your Portrait TRMNL setting — I validated that all four Liquid
-templates parse and render both branches correctly, but couldn't render
-them through TRMNL's actual framework CSS to confirm the `portrait:`
-variant behaves as their docs describe. If it doesn't work, fall back to
-assigning the matching `templates/<layout>_portrait.liquid` (unconditional,
-no orientation detection — one exists for each of the four sizes) directly
-to whatever plugin instance/playlist slot your portrait device pulls
-from — the images themselves already render correctly either way, this is
-purely about which template file gets the right one in front of the
-device.
+Whatever the exact cause, the fix is simple and now proven: assign
+`templates/<layout>_portrait.liquid` — unconditional, no orientation
+detection, just always shows the portrait image — directly to whatever
+plugin instance/playlist slot the portrait device pulls from. The
+auto-detecting templates are left in place for anyone whose setup *does*
+report as a recognized native device, but portrait BYOS devices should go
+straight to the explicit `_portrait` template rather than trying the
+auto-detecting one first.
 
 ## Local testing
 
