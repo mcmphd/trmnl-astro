@@ -75,14 +75,10 @@ applies an empirical compensation (`TEXT_NUDGE_FRAC`, currently 0.45) shared
 by every text-on-the-graphic call site — one place to retune if a
 particular glyph still isn't quite centered.
 
-**Known remaining issue, not yet addressed**: the zodiac glyph showed as a
-small tofu/placeholder box in the one on-device screenshot seen so far,
-rather than the intended character. The README previously noted this was
-*unverified* whether iOS's system font covers the astrological Unicode
-block (U+2648-2653) — that screenshot suggests it may not, at least not at
-the font/size used. Not fixed yet since it wasn't reported as something to
-fix this round; likely needs either a different system font name or a
-larger point size to resolve.
+**Zodiac glyph rendering is confirmed working** on-device (the small
+purple-ish square in the early screenshot was misread as a tofu box —
+it's actually the glyph rendering correctly). iOS's system font does
+cover the astrological Unicode block (U+2648-2653) at the size used.
 
 ### Background: true transparency isn't possible on iOS Home Screen widgets
 
