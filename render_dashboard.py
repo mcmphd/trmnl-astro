@@ -169,10 +169,23 @@ def hatch_wedge(img: Image.Image, bbox, a0, a1, spacing):
     img.paste(hatch, (0, 0), mask)
 
 
-def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometry, now_local: datetime, times: dict):
+def draw_daylight_ring(
+    img: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    geo: Geometry,
+    now_local: datetime,
+    times: dict,
+    show_now_marker: bool = False,
+):
     """24h clock-face ring, noon at top, clockwise. Night/day are flat
     black/white; the three twilight stages are diagonal hatch patterns
     (densest near night, sparsest near day) rather than flat grays.
+
+    show_now_marker draws a triangle pointing at the current time. Off by
+    default: this project's current delivery (TRMNL, rendered on a 6-hour
+    cron) makes that marker stale for up to 6 hours -- worse than not
+    showing a "now" indicator at all. Left in and easy to re-enable for a
+    future delivery path that renders closer to real time.
     """
     day0 = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -224,11 +237,12 @@ def draw_daylight_ring(img: Image.Image, draw: ImageDraw.ImageDraw, geo: Geometr
         p1 = polar_point(cx, cy, r_in, ang)
         draw.line([p0, p1], fill=BLACK, width=SS)
 
-    now_ang = a(now_local)
-    tip = polar_point(cx, cy, r_out + 2 * scale * SS, now_ang)
-    base_l = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang - 3)
-    base_r = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang + 3)
-    draw.polygon([tip, base_l, base_r], fill=BLACK)
+    if show_now_marker:
+        now_ang = a(now_local)
+        tip = polar_point(cx, cy, r_out + 2 * scale * SS, now_ang)
+        base_l = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang - 3)
+        base_r = polar_point(cx, cy, r_out + 16 * scale * SS, now_ang + 3)
+        draw.polygon([tip, base_l, base_r], fill=BLACK)
 
     # noon / midnight markers, centered in the daylight track itself: a
     # white (hollow) circle for noon, a black (filled) circle for midnight.
@@ -449,7 +463,7 @@ def draw_text_panel(draw, tx, ty, tw, now_local, today, times, eot_min, fraction
         y += gap_after * SS
 
 
-def render(lat, lon, tzname, out_path, layout="full", when=None):
+def render(lat, lon, tzname, out_path, layout="full", when=None, show_now_marker=False):
     cfg = LAYOUTS[layout]
     W, H = cfg["w"], cfg["h"]
     geo = Geometry(cfg["cx"], cfg["cy"], cfg["r_ring_out"])
@@ -462,7 +476,7 @@ def render(lat, lon, tzname, out_path, layout="full", when=None):
     draw = ImageDraw.Draw(img)
 
     times = sun_times(today, lat, lon, tzname)
-    draw_daylight_ring(img, draw, geo, now_local, times)
+    draw_daylight_ring(img, draw, geo, now_local, times, show_now_marker=show_now_marker)
 
     year_points = eot_calendar_year(today.year)
     draw_eot_loop(draw, geo, today, year_points, zodiac_all=cfg["zodiac_all"])
@@ -494,6 +508,13 @@ if __name__ == "__main__":
     p.add_argument("--tz")
     p.add_argument("--layout", choices=list(LAYOUTS), default="full")
     p.add_argument("--out", default=None)
+    p.add_argument(
+        "--show-now-marker",
+        action="store_true",
+        help="draw the 'now' triangle on the daylight ring (off by default -- "
+        "stale for up to 6h on this project's cron-based delivery; useful for "
+        "testing, or a future delivery path that renders closer to real time)",
+    )
     args = p.parse_args()
 
     if args.zip_code:
@@ -505,5 +526,5 @@ if __name__ == "__main__":
         p.error("either --zip, or all of --lat/--lon/--tz, is required")
 
     out = args.out or f"data/dashboard_{args.layout}.png"
-    render(lat, lon, tzname, out, layout=args.layout)
+    render(lat, lon, tzname, out, layout=args.layout, show_now_marker=args.show_now_marker)
     print("wrote", out)

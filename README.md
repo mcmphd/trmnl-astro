@@ -34,11 +34,11 @@ image directly rather than rotating the landscape one.
 - **Outer ring**: 24-hour daylight/twilight/night band, **noon at top (12
   o'clock), midnight at bottom (6 o'clock)**, clockwise — night (black),
   astronomical/nautical/civil twilight (diagonal hatch at three
-  densities), day (white) — with a triangular marker pointing inward at
-  the ring to indicate the current time, plus a small circle sitting in
-  the middle of the daylight track itself at true noon/midnight: white
-  (hollow) for noon, black (filled) for midnight, each outlined in the
-  opposite color so it stays visible whichever band it lands in. These
+  densities), day (white). A small circle sits in the middle of the
+  daylight track itself at true noon/midnight: white (hollow) for noon,
+  black (filled) for midnight, each outlined in the opposite color so it
+  stays visible whichever band it lands in. (There's no live "now" marker
+  — see Design decisions for why that was pulled.) These circles
   replaced word labels ("NOON"/"MIDNIGHT") that didn't fit at smaller
   layout sizes — the circles are compact enough to show everywhere.
 - **Text panel** (all layouts except Quadrant, which is graphic-only):
@@ -182,6 +182,17 @@ without a system font install. If none of the three are found, everything
 falls back to PIL's tiny built-in bitmap font (no zodiac glyph support).
 
 ## Design decisions
+
+**The "now" triangle marker on the daylight ring is off by default.** It
+drew fine, but a precise hour/minute pointer is actively misleading on
+this project's delivery: TRMNL renders on a 6-hour cron, so the marker
+could be showing a time up to 6 hours stale — worse than showing nothing,
+since it looks authoritative. `draw_daylight_ring(..., show_now_marker=...)`
+and `render_dashboard.py --show-now-marker` both still exist and work
+(default `False`) rather than being deleted — kept for a future delivery
+path that renders closer to real time, where a live marker would
+actually be accurate. The noon/midnight circles are unaffected: they mark
+fixed clock positions, not "now," so staleness doesn't apply to them.
 
 **Fixed calendar orientation, not a rolling window.** The EoT loop spans
 Jan 1–Dec 31 of the current year with Jan 1 always at the top, so the
