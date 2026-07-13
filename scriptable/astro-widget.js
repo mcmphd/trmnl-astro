@@ -31,6 +31,19 @@ const FALLBACK_LON = -77.4845;
 const BLACK = Color.black();
 const WHITE = Color.white();
 
+// Color palette (iOS only has real color, unlike the e-ink TRMNL version --
+// this also means the hatch-pattern twilight bands aren't needed here; they
+// existed purely to survive 1-bit dithering, so plain color fills replace
+// them below). Hex values are my best approximation of the named colors
+// requested; nudge these directly if they don't match what you had in mind.
+const SKY_BLUE = new Color("#87CEEB");
+const TWILIGHT_TEAL_NEAR_DAY = new Color("#8FBFBA");
+const TWILIGHT_TEAL_MID = new Color("#5E9C97");
+const TWILIGHT_TEAL_NEAR_NIGHT = new Color("#3A6E6A");
+const PAYNES_GREY = new Color("#536878");
+const SUN_EMOJI = "☀️";
+const MOON_EMOJI = "🌙";
+
 // ---- geometry (mirrors render_dashboard.py's Geometry class) -----------
 
 // Reference ring radii (points, at a canvas of REF_SIZE x REF_SIZE) that
@@ -129,29 +142,6 @@ function wedgePath(cx, cy, rOuter, rInner, a0, a1, stepDeg) {
   return path;
 }
 
-// Radial-tick hatch for the twilight bands, in place of the Python
-// version's diagonal-line + mask compositing (Scriptable's DrawContext
-// has no clip-to-path / boolean mask operation exposed). Each tick is a
-// short line from rInner to rOuter at a given angle -- naturally confined
-// to the wedge with no masking needed, since it's parametrized in the
-// same polar coordinates as the wedge itself. `stepDeg` controls density
-// (smaller = darker-reading band).
-function drawHatchWedge(ctx, cx, cy, rOuter, rInner, a0, a1, stepDeg) {
-  ctx.setStrokeColor(BLACK);
-  ctx.setLineWidth(1);
-  let a = a0;
-  while (a <= a1) {
-    const p0 = polarPoint(cx, cy, rInner, a);
-    const p1 = polarPoint(cx, cy, rOuter, a);
-    const path = new Path();
-    path.move(p0);
-    path.addLine(p1);
-    ctx.addPath(path);
-    ctx.strokePath();
-    a += stepDeg;
-  }
-}
-
 function drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times) {
   // `dayStart` must be the TRUE UTC instant of local midnight (see
   // localCalendarDay() above) -- NOT today's date with UTC hours zeroed,
@@ -164,32 +154,30 @@ function drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times) {
 
   const a = (d) => hourAngleDeg(d, tzOffsetMinutes);
 
-  // (start, end, fill) for solid bands, or (start, end, null, stepDeg) for hatch
+  // (start, end, fill) -- solid color throughout, no hatch patterns. Those
+  // existed only so the twilight bands would survive 1-bit e-ink dithering
+  // on the TRMNL version; real color makes that unnecessary.
   const bands = [
-    [dayStart, times.dawnAstronomical, BLACK, null],
-    [times.dawnAstronomical, times.dawnNautical, null, 10],
-    [times.dawnNautical, times.dawnCivil, null, 6],
-    [times.dawnCivil, times.sunrise, null, 3],
-    [times.sunrise, times.sunset, WHITE, null],
-    [times.sunset, times.duskCivil, null, 3],
-    [times.duskCivil, times.duskNautical, null, 6],
-    [times.duskNautical, times.duskAstronomical, null, 10],
-    [times.duskAstronomical, dayEnd, BLACK, null],
+    [dayStart, times.dawnAstronomical, PAYNES_GREY],
+    [times.dawnAstronomical, times.dawnNautical, TWILIGHT_TEAL_NEAR_NIGHT],
+    [times.dawnNautical, times.dawnCivil, TWILIGHT_TEAL_MID],
+    [times.dawnCivil, times.sunrise, TWILIGHT_TEAL_NEAR_DAY],
+    [times.sunrise, times.sunset, SKY_BLUE],
+    [times.sunset, times.duskCivil, TWILIGHT_TEAL_NEAR_DAY],
+    [times.duskCivil, times.duskNautical, TWILIGHT_TEAL_MID],
+    [times.duskNautical, times.duskAstronomical, TWILIGHT_TEAL_NEAR_NIGHT],
+    [times.duskAstronomical, dayEnd, PAYNES_GREY],
   ];
 
-  for (const [start, end, fill, stepDeg] of bands) {
+  for (const [start, end, fill] of bands) {
     if (!start || !end) continue; // polar day/night: an event never occurred
     let a0 = a(start);
     let a1 = a(end);
     if (a1 <= a0) a1 += 360;
-    if (fill) {
-      const path = wedgePath(cx, cy, rOut, rIn, a0, a1, 2);
-      ctx.addPath(path);
-      ctx.setFillColor(fill);
-      ctx.fillPath();
-    } else {
-      drawHatchWedge(ctx, cx, cy, rOut, rIn, a0, a1, stepDeg);
-    }
+    const path = wedgePath(cx, cy, rOut, rIn, a0, a1, 2);
+    ctx.addPath(path);
+    ctx.setFillColor(fill);
+    ctx.fillPath();
   }
 
   // crisp edge circles
@@ -216,26 +204,24 @@ function drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times) {
     ctx.strokePath();
   }
 
-  // noon / midnight markers: white (hollow) circle for noon, black
-  // (filled) for midnight, each outlined in the opposite color so it
-  // stays visible whichever band (day/night) it lands in. No live "now"
-  // marker -- same reasoning as the TRMNL version: misleading once
-  // there's any gap between renders. On-device this script recomputes
-  // live on every widget refresh, so unlike the TRMNL version a "now"
-  // marker WOULD be accurate here -- left out of this first pass to keep
-  // the port a faithful match; add one back in if you want it.
+  // noon / midnight markers: sun/moon emoji sitting in the track itself,
+  // replacing the white/black circles from the TRMNL (monochrome) version
+  // now that real color and emoji are available. No live "now" marker --
+  // same reasoning as the TRMNL version: misleading once there's any gap
+  // between renders. On-device this script recomputes live on every
+  // widget refresh, so unlike the TRMNL version a "now" marker WOULD be
+  // accurate here -- left out of this first pass to keep the port a
+  // faithful match; add one back in if you want it.
   const rMid = (rIn + rOut) / 2;
-  const markerR = Math.max(2, 5 * scale);
-  for (const [ang, fill, outline] of [
-    [0, WHITE, BLACK],
-    [180, BLACK, WHITE],
+  const emojiFont = Font.systemFont(11 * scale);
+  ctx.setFont(emojiFont);
+  for (const [ang, emoji] of [
+    [0, SUN_EMOJI],
+    [180, MOON_EMOJI],
   ]) {
     const p = polarPoint(cx, cy, rMid, ang);
-    ctx.setFillColor(fill);
-    ctx.fillEllipse(new Rect(p.x - markerR, p.y - markerR, markerR * 2, markerR * 2));
-    ctx.setStrokeColor(outline);
-    ctx.setLineWidth(1.5);
-    ctx.strokeEllipse(new Rect(p.x - markerR, p.y - markerR, markerR * 2, markerR * 2));
+    const w = 11 * scale;
+    ctx.drawTextInRect(emoji, new Rect(p.x - w, p.y - w, w * 2, w * 2));
   }
 }
 
@@ -283,7 +269,7 @@ function drawEotLoop(ctx, geo, today, yearPoints, zodiacAll) {
 
   // month-start letters, right on the loop, with a white halo so they
   // read against the loop's own line
-  const monthFont = Font.boldSystemFont(7 * scale);
+  const monthFont = Font.boldSystemFont(9.5 * scale);
   ctx.setFont(monthFont);
   yearPoints.forEach((pt, i) => {
     if (pt.date.getUTCDate() !== 1) return;
@@ -291,7 +277,7 @@ function drawEotLoop(ctx, geo, today, yearPoints, zodiacAll) {
     const r = eotRadius(pt.eotMinutes);
     const p = polarPoint(cx, cy, r, ang);
     const letter = MONTH_INITIAL[pt.date.getUTCMonth()];
-    const haloR = 5 * scale;
+    const haloR = 6.5 * scale;
     ctx.setFillColor(WHITE);
     ctx.fillEllipse(new Rect(p.x - haloR, p.y - haloR, haloR * 2, haloR * 2));
     ctx.setTextColor(BLACK);
@@ -454,12 +440,15 @@ async function renderImage(canvasSize, includeText, lat, lon, tzOffsetMinutes, w
   // any other property or drawing call -- Scriptable enforces this at
   // runtime (confirmed on-device: "Cannot change whether to respect the
   // screen scale after performing one of the previous operations").
+  // Transparent background (opaque=false, no fill) rather than solid
+  // white -- for a translucent/"liquid glass" widget, iOS needs to see
+  // through to the wallpaper wherever this image doesn't paint anything.
+  // widget.backgroundImage in main() relies on this: don't also set
+  // widget.backgroundColor, or it'll paint over the transparency.
   const ctx = new DrawContext();
   ctx.respectScreenScale = true;
   ctx.size = new Size(width, canvasSize);
-  ctx.opaque = true;
-  ctx.setFillColor(WHITE);
-  ctx.fillRect(new Rect(0, 0, width, canvasSize));
+  ctx.opaque = false;
 
   const times = AstroCore.sunTimes(today, lat, lon);
   drawDaylightRing(ctx, geo, dayStart, tzOffsetMinutes, times);

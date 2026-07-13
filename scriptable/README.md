@@ -34,11 +34,40 @@ and how:
   hours every evening in US timezones — worse the further behind UTC).
   Both fixed; see the `localCalendarDay()` comment for the reasoning.
 
-**Not verified**: everything that only executes inside Scriptable itself —
-`DrawContext` drawing calls actually producing the intended image,
-`Location.current()` behavior, `ListWidget.backgroundImage` fill behavior
-in a "medium"/"large" widget frame, and general on-device performance.
-Expect to debug real issues the first time this actually runs in the app.
+**Confirmed working on real hardware** as of the first on-device test: the
+widget renders and shows on a Home Screen. One real bug surfaced on that
+first run — `respectScreenScale` has to be the very first thing set after
+`new DrawContext()`, before any other property or drawing call, or
+Scriptable throws at runtime. Fixed.
+
+**Still not verified**: `ListWidget.backgroundImage` fill behavior in a
+"medium"/"large" widget frame (only "small" is composed for so far), and
+general on-device performance over repeated refreshes.
+
+## Color and "Liquid Glass" background
+
+Unlike the monochrome e-ink TRMNL version, this renders in full color and
+with a transparent background:
+
+- **Daylight ring**: sky blue (day), three teal shades graduating toward
+  night (civil → nautical → astronomical twilight), Payne's grey (night).
+  These replace the TRMNL version's diagonal-hatch twilight bands — that
+  hatching only existed to survive 1-bit e-ink dithering, so plain color
+  fills replace it directly, no workaround needed.
+- **Noon/midnight markers**: ☀️/🌙 emoji instead of the TRMNL version's
+  white/black circles.
+- **Background**: transparent (`ctx.opaque = false`, no fill), so the
+  widget shows through to your Home Screen wallpaper/Liquid Glass material
+  rather than a solid white card. This relies on not setting
+  `widget.backgroundColor` in `main()` — that would paint over the
+  transparency.
+- **Month letters**: sized up slightly (7pt → 9.5pt at reference scale)
+  for legibility.
+
+Exact hex values (`SKY_BLUE`, `TWILIGHT_TEAL_*`, `PAYNES_GREY` near the
+top of `astro-widget.js`) are my best approximation of the named colors
+requested — nudge them directly if they don't match what you had in mind;
+I have no way to preview actual color rendering from this environment.
 
 ## Setup
 
